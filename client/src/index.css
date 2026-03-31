@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    height: 100%;
+    overflow: hidden;
+    background-color: #0a1628;
+    color: #e2e8f0;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #0d1f3c; }
+  ::-webkit-scrollbar-thumb { background: #1a3357; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+}
+
+@layer components {
+  .btn {
+    @apply flex items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold text-sm
+           transition-all duration-200 active:scale-95 select-none cursor-pointer
+           min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-blue-600 hover:bg-blue-500 text-white;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-700 hover:bg-red-600 text-white;
+  }
+
+  .btn-ghost {
+    @apply btn bg-space-700 hover:bg-space-600 text-slate-300 border border-space-600;
+  }
+
+  .card {
+    @apply bg-space-700 rounded-xl border border-space-600/50 p-4;
+  }
+
+  .input {
+    @apply w-full rounded-lg bg-space-800 border border-space-600 px-4 py-3
+           text-slate-100 placeholder-slate-500 focus:outline-none
+           focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50
+           text-sm min-h-[44px];
+  }
+
+  .label {
+    @apply block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .page {
+    @apply flex-1 overflow-y-auto overscroll-contain pb-20;
+  }
+
+  .section-title {
+    @apply text-xs uppercase tracking-widest text-slate-500 font-medium mb-3;
+  }
+
+  .stat-row {
+    @apply flex items-center justify-between py-2 border-b border-space-600/40 last:border-0;
+  }
+}

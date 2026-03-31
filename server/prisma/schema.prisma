@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Season ───────────────────────────────────────────────────────────────────
+model Season {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  bases                Base[]
+  alliances            Alliance[]
+  medals               Medal[]
+  leaderboardSnapshots LeaderboardSnapshot[]
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  isAdmin      Boolean  @default(false)
+  isBanned     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  bases                Base[]
+  allianceMembership   AllianceMember[]
+  allianceInvites      AllianceInvite[]
+  medals               Medal[]
+  leaderboardSnapshots LeaderboardSnapshot[]
+  sentMessages         ChatMessage[]        @relation("sender")
+  receivedMessages     ChatMessage[]        @relation("receiver")
+}
+
+// ─── Base ─────────────────────────────────────────────────────────────────────
+model Base {
+  id               String   @id @default(cuid())
+  userId           String
+  seasonId         String
+  name             String
+  x                Float
+  y                Float
+  isAdmin          Boolean  @default(false)
+  isMain           Boolean  @default(true)
+  populationPoints Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  user            User            @relation(fields: [userId], references: [id])
+  season          Season          @relation(fields: [seasonId], references: [id])
+  buildings       Building[]
+  resourceState   ResourceState?
+  mines           Mine[]
+  unitStocks      UnitStock[]
+  buildQueues     BuildQueue[]
+  attacksLaunched Attack[]        @relation("attacker")
+  attacksReceived Attack[]        @relation("defender")
+  tradePodsOut    TradePod[]      @relation("fromBase")
+  tradePodsIn     TradePod[]      @relation("toBase")
+}
+
+// ─── Building ─────────────────────────────────────────────────────────────────
+model Building {
+  id            String       @id @default(cuid())
+  baseId        String
+  type          BuildingType
+  level         Int          @default(0)
+  upgradeEndsAt DateTime?
+
+  base Base @relation(fields: [baseId], references: [id])
+
+  @@unique([baseId, type])
+}
+
+enum BuildingType {
+  SILO
+  BUNKER
+  RESEARCH_LAB
+  RADAR
+  WAR_ROOM
+  CONSTRUCTION_YARD
+  ALLIANCE
+  TRADE_POD
+}
+
+// ─── Resource State ───────────────────────────────────────────────────────────
+model ResourceState {
+  id            String   @id @default(cuid())
+  baseId        String   @unique
+  oxygen        Float    @default(0)
+  water         Float    @default(0)
+  iron          Float    @default(0)
+  helium3       Float    @default(0)
+  lastUpdatedAt DateTime @default(now())
+
+  base Base @relation(fields: [baseId], references: [id])
+}
+
+// ─── Mine ─────────────────────────────────────────────────────────────────────
+model Mine {
+  id             String       @id @default(cuid())
+  baseId         String
+  resourceType   ResourceType
+  slot           Int
+  level          Int          @default(0)
+  upgradeEndsAt  DateTime?
+
+  base Base @relation(fields: [baseId], references: [id])
+
+  @@unique([baseId, resourceType, slot])
+}
+
+enum ResourceType {
+  OXYGEN
+  WATER
+  IRON
+  HELIUM3
+}
+
+// ─── Unit Stock ───────────────────────────────────────────────────────────────
+model UnitStock {
+  id     String   @id @default(cuid())
+  baseId String
+  type   UnitType
+  count  Int      @default(0)
+
+  base Base @relation(fields: [baseId], references: [id])
+
+  @@unique([baseId, type])
+}
+
+// ─── Build Queue ──────────────────────────────────────────────────────────────
+model BuildQueue {
+  id          String   @id @default(cuid())
+  baseId      String
+  unitType    UnitType
+  quantity    Int
+  startedAt   DateTime @default(now())
+  completesAt DateTime
+  completed   Boolean  @default(false)
+
+  base Base @relation(fields: [baseId], references: [id])
+}
+
+enum UnitType {
+  MOONBUGGY
+  GUNSHIP
+  TANK
+  HARVESTER
+  DRONE
+  TITAN
+}
+
+// ─── Attack ───────────────────────────────────────────────────────────────────
+model Attack {
+  id             String       @id @default(cuid())
+  attackerBaseId String
+  defenderBaseId String
+  units          Json
+  launchTime     DateTime     @default(now())
+  arrivalTime    DateTime
+  status         AttackStatus @default(IN_FLIGHT)
+  returnTime     DateTime?
+
+  attackerBase Base          @relation("attacker", fields: [attackerBaseId], references: [id])
+  defenderBase Base          @relation("defender", fields: [defenderBaseId], references: [id])
+  battleReport BattleReport?
+}
+
+enum AttackStatus {
+  IN_FLIGHT
+  BATTLING
+  RETURNING
+  COMPLETED
+}
+
+// ─── Battle Report ────────────────────────────────────────────────────────────
+model BattleReport {
+  id                   String   @id @default(cuid())
+  attackId             String   @unique
+  attackerUnitsLost    Json
+  defenderUnitsLost    Json
+  resourcesLooted      Json
+  attackerPointsChange Int
+  defenderPointsChange Int
+  attackerWon          Boolean
+  reportedAt           DateTime @default(now())
+
+  attack Attack @relation(fields: [attackId], references: [id])
+}
+
+// ─── Alliance ─────────────────────────────────────────────────────────────────
+model Alliance {
+  id       String   @id @default(cuid())
+  seasonId String
+  name     String
+  leaderId String
+  createdAt DateTime @default(now())
+
+  season       Season           @relation(fields: [seasonId], references: [id])
+  members      AllianceMember[]
+  invites      AllianceInvite[]
+  chatMessages ChatMessage[]
+}
+
+// ─── Alliance Member ──────────────────────────────────────────────────────────
+model AllianceMember {
+  allianceId String
+  userId     String
+  joinedAt   DateTime @default(now())
+
+  alliance Alliance @relation(fields: [allianceId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@id([allianceId, userId])
+}
+
+// ─── Alliance Invite ──────────────────────────────────────────────────────────
+model AllianceInvite {
+  id            String       @id @default(cuid())
+  allianceId    String
+  invitedUserId String
+  status        InviteStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+
+  alliance    Alliance @relation(fields: [allianceId], references: [id])
+  invitedUser User     @relation(fields: [invitedUserId], references: [id])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+// ─── Trade Pod ────────────────────────────────────────────────────────────────
+model TradePod {
+  id          String         @id @default(cuid())
+  fromBaseId  String
+  toBaseId    String
+  resources   Json
+  launchTime  DateTime       @default(now())
+  arrivalTime DateTime
+  status      TradePodStatus @default(IN_TRANSIT)
+
+  fromBase Base @relation("fromBase", fields: [fromBaseId], references: [id])
+  toBase   Base @relation("toBase", fields: [toBaseId], references: [id])
+}
+
+enum TradePodStatus {
+  IN_TRANSIT
+  ARRIVED
+}
+
+// ─── Chat Message ─────────────────────────────────────────────────────────────
+model ChatMessage {
+  id         String   @id @default(cuid())
+  allianceId String?
+  fromUserId String
+  toUserId   String?
+  message    String
+  sentAt     DateTime @default(now())
+
+  alliance Alliance? @relation(fields: [allianceId], references: [id])
+  fromUser User      @relation("sender", fields: [fromUserId], references: [id])
+  toUser   User?     @relation("receiver", fields: [toUserId], references: [id])
+}
+
+// ─── Medal ────────────────────────────────────────────────────────────────────
+model Medal {
+  id             String  @id @default(cuid())
+  userId         String
+  seasonId       String
+  weekNumber     Int
+  attackerPoints Int     @default(0)
+  defenderPoints Int     @default(0)
+  raiderPoints   Int     @default(0)
+  rewardGiven    Boolean @default(false)
+
+  user   User   @relation(fields: [userId], references: [id])
+  season Season @relation(fields: [seasonId], references: [id])
+
+  @@unique([userId, seasonId, weekNumber])
+}
+
+// ─── Leaderboard Snapshot ─────────────────────────────────────────────────────
+model LeaderboardSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  seasonId         String
+  populationPoints Int      @default(0)
+  attackerMedals   Int      @default(0)
+  defenderMedals   Int      @default(0)
+  raiderMedals     Int      @default(0)
+  snapshotAt       DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  season Season @relation(fields: [seasonId], references: [id])
+}
