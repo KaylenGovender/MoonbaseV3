@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
-import { deductResources } from '../services/resourceEngine.js';
+import { deductResources, addResources } from '../services/resourceEngine.js';
 import { UNIT_STATS, constructionYardReduction } from '../config/gameConfig.js';
 import { distanceBetween as calcDistance } from '../services/placementService.js';
 
@@ -190,6 +190,41 @@ router.post('/:baseId/attack', requireAuth, async (req, res) => {
     res.status(201).json({ attack, eta: arrivalTime });
   } catch (err) {
     console.error('[attack launch]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/warroom/:baseId/queue/:jobId — cancel a queued unit job and refund
+router.delete('/:baseId/queue/:jobId', requireAuth, async (req, res) => {
+  try {
+    const { baseId, jobId } = req.params;
+    const base = await prisma.base.findUnique({ where: { id: baseId } });
+    if (!base || base.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const job = await prisma.buildQueue.findUnique({ where: { id: jobId } });
+    if (!job || job.baseId !== baseId) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    if (job.completed) {
+      return res.status(400).json({ error: 'Job already completed' });
+    }
+
+    // Refund resources
+    const stats = UNIT_STATS[job.unitType];
+    if (stats) {
+      await addResources(baseId, {
+        oxygen:  stats.cost.oxygen  * job.quantity,
+        water:   stats.cost.water   * job.quantity,
+        iron:    stats.cost.iron    * job.quantity,
+        helium3: stats.cost.helium3 * job.quantity,
+      });
+    }
+
+    await prisma.buildQueue.delete({ where: { id: jobId } });
+    res.json({ message: 'Cancelled and refunded' });
+  } catch (err) {
+    console.error('[warroom/cancel]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

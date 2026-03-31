@@ -88,7 +88,29 @@ export default function Alliance() {
     }
   }
 
-  async function sendMessage() {
+  async function leaveAlliance() {
+    if (!window.confirm('Leave this alliance?')) return;
+    try {
+      await api.post(`/alliance/${alliance.id}/leave`, {});
+      setAlliance(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function disbandAlliance() {
+    if (!window.confirm(`Disband "${alliance.name}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/alliance/${alliance.id}`);
+      setAlliance(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+
     if (!msgInput.trim() || !alliance) return;
     socket?.emit('chat:send', { allianceId: alliance.id, message: msgInput.trim() });
     setMsgInput('');
@@ -170,6 +192,16 @@ export default function Alliance() {
             <div className="stat-row"><span className="text-slate-400 text-sm">Members</span><span className="text-white">{alliance.members?.length ?? 0}</span></div>
             <div className="stat-row"><span className="text-slate-400 text-sm">Role</span><span className={isLeader ? 'text-yellow-400' : 'text-slate-300'}>{isLeader ? 'Leader' : 'Member'}</span></div>
           </div>
+
+          {isLeader ? (
+            <button onClick={disbandAlliance} className="btn-danger w-full text-sm">
+              💥 Disband Alliance
+            </button>
+          ) : (
+            <button onClick={leaveAlliance} className="btn-ghost w-full text-sm border-red-800/50 text-red-400">
+              🚪 Leave Alliance
+            </button>
+          )}
         </div>
       )}
 

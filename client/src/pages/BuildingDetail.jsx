@@ -57,6 +57,7 @@ export default function BuildingDetail() {
 
   const [building, setBuilding]   = useState(null);
   const [buildings, setBuildings] = useState([]);
+  const [resources, setResources] = useState(null);
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [, tick]                  = useState(0);
@@ -68,9 +69,13 @@ export default function BuildingDetail() {
 
   async function load() {
     try {
-      const res = await api.get(`/base/${activeBaseId}/buildings`);
-      setBuildings(res.buildings);
-      setBuilding(res.buildings.find((b) => b.type === typeKey) ?? null);
+      const [bRes, rRes] = await Promise.all([
+        api.get(`/base/${activeBaseId}/buildings`),
+        api.get(`/base/${activeBaseId}/resources`),
+      ]);
+      setBuildings(bRes.buildings);
+      setBuilding(bRes.buildings.find((b) => b.type === typeKey) ?? null);
+      setResources(rRes.resourceState);
     } catch (e) {
       setError(e.message);
     }
@@ -137,11 +142,11 @@ export default function BuildingDetail() {
 
             <div>
               <div className="section-title">Cost</div>
-              <div className="grid grid-cols-2 gap-1 text-sm">
-                {cost.oxygen  > 0 && <div className="stat-row"><span className="text-sky-400">O₂ Oxygen</span><span className="font-mono text-white">{formatNumber(cost.oxygen)}</span></div>}
-                {cost.water   > 0 && <div className="stat-row"><span className="text-blue-400">H₂O Water</span><span className="font-mono text-white">{formatNumber(cost.water)}</span></div>}
-                {cost.iron    > 0 && <div className="stat-row"><span className="text-orange-400">Fe Iron</span><span className="font-mono text-white">{formatNumber(cost.iron)}</span></div>}
-                {cost.helium3 > 0 && <div className="stat-row"><span className="text-red-400">He3</span><span className="font-mono text-white">{formatNumber(cost.helium3)}</span></div>}
+              <div className="space-y-1">
+                {cost.oxygen  > 0 && <ResourceCostRow label="O₂ Oxygen"  color="text-sky-400"    cost={cost.oxygen}  have={resources?.oxygen}  />}
+                {cost.water   > 0 && <ResourceCostRow label="H₂O Water"  color="text-blue-400"   cost={cost.water}   have={resources?.water}   />}
+                {cost.iron    > 0 && <ResourceCostRow label="Fe Iron"     color="text-orange-400" cost={cost.iron}    have={resources?.iron}    />}
+                {cost.helium3 > 0 && <ResourceCostRow label="He3"         color="text-red-400"    cost={cost.helium3} have={resources?.helium3} />}
               </div>
             </div>
 
@@ -168,6 +173,21 @@ export default function BuildingDetail() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ResourceCostRow({ label, color, cost, have }) {
+  const h = Math.floor(have ?? 0);
+  const canAfford = h >= cost;
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-space-600/30 last:border-0 text-sm">
+      <span className={color}>{label}</span>
+      <span className="font-mono">
+        <span className={canAfford ? 'text-white' : 'text-red-400'}>{formatNumber(cost)}</span>
+        <span className="text-slate-500 mx-1">/</span>
+        <span className={canAfford ? 'text-green-400' : 'text-red-400'}>{formatNumber(h)}</span>
+      </span>
     </div>
   );
 }

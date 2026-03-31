@@ -261,7 +261,46 @@ router.post('/:id/kick/:userId', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/alliance/invites/mine — pending invites for current user
+// POST /api/alliance/:id/leave — any member leaves
+router.post('/:id/leave', requireAuth, async (req, res) => {
+  try {
+    const { id: allianceId } = req.params;
+    const alliance = await prisma.alliance.findUnique({ where: { id: allianceId } });
+    if (!alliance) return res.status(404).json({ error: 'Alliance not found' });
+    if (alliance.leaderId === req.user.id) {
+      return res.status(400).json({ error: 'Leader must disband the alliance instead of leaving' });
+    }
+    await prisma.allianceMember.delete({
+      where: { allianceId_userId: { allianceId, userId: req.user.id } },
+    });
+    res.json({ message: 'Left alliance' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/alliance/:id — leader disbands
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const { id: allianceId } = req.params;
+    const alliance = await prisma.alliance.findUnique({ where: { id: allianceId } });
+    if (!alliance) return res.status(404).json({ error: 'Alliance not found' });
+    if (alliance.leaderId !== req.user.id) {
+      return res.status(403).json({ error: 'Only the leader can disband' });
+    }
+    // Delete all members, invites, messages, then the alliance
+    await prisma.allianceMember.deleteMany({ where: { allianceId } });
+    await prisma.allianceInvite.deleteMany({ where: { allianceId } });
+    await prisma.chatMessage.deleteMany({ where: { allianceId } });
+    await prisma.alliance.delete({ where: { id: allianceId } });
+    res.json({ message: 'Alliance disbanded' });
+  } catch (err) {
+    console.error('[alliance/disband]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 router.get('/invites/mine', requireAuth, async (req, res) => {
   try {
     const invites = await prisma.allianceInvite.findMany({

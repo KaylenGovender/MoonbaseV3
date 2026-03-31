@@ -13,6 +13,7 @@ export default function WarRoom() {
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
   const [, tick]            = useState(0);
+  const [confirmCancel, setConfirmCancel] = useState(null);
 
   useEffect(() => {
     const id = setInterval(() => tick((n) => n + 1), 1000);
@@ -42,6 +43,16 @@ export default function WarRoom() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function cancelJob(jobId) {
+    setConfirmCancel(null);
+    try {
+      await api.delete(`/warroom/${activeBaseId}/queue/${jobId}`);
+      await load();
+    } catch (e) {
+      setError(e.message);
     }
   }
 
@@ -78,8 +89,27 @@ export default function WarRoom() {
                         <div className="text-xs text-slate-500">Building…</div>
                       </div>
                     </div>
-                    <div className="text-blue-400 font-mono text-sm">
-                      {formatCountdown(job.completesAt)}
+                    <div className="flex items-center gap-2">
+                      <div className="text-blue-400 font-mono text-sm">
+                        {formatCountdown(job.completesAt)}
+                      </div>
+                      {confirmCancel === job.id ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => cancelJob(job.id)}
+                            className="btn-danger text-xs px-2 py-1"
+                          >✓</button>
+                          <button
+                            onClick={() => setConfirmCancel(null)}
+                            className="btn-ghost text-xs px-2 py-1"
+                          >✕</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmCancel(job.id)}
+                          className="btn-ghost text-xs px-2 py-1 text-red-400 border-red-800/50"
+                        >Cancel</button>
+                      )}
                     </div>
                   </div>
                 );

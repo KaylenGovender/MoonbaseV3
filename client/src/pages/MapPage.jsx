@@ -47,7 +47,7 @@ export default function MapPage() {
     setShowChat(false);
   }
 
-  const isOwnBase = selectedBase ? playerBaseIds.includes(selectedBase.id) : false;
+  const isOwnBase = selectedBase?.isOwn ?? false;
 
   return (
     <div className="page flex flex-col" style={{ paddingBottom: 0 }}>

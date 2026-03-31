@@ -131,11 +131,11 @@ export default function ResourceDetail() {
                     <div className="text-xs text-green-400 text-center py-2">✓ Max Level</div>
                   ) : cost && (
                     <div className="space-y-2">
-                      <div className="grid grid-cols-4 gap-1 text-[10px] text-slate-500">
-                        {cost.oxygen  > 0 && <span className="text-sky-400">O₂ {formatNumber(cost.oxygen)}</span>}
-                        {cost.water   > 0 && <span className="text-blue-400">H₂O {formatNumber(cost.water)}</span>}
-                        {cost.iron    > 0 && <span className="text-orange-400">Fe {formatNumber(cost.iron)}</span>}
-                        {cost.helium3 > 0 && <span className="text-red-400">He3 {formatNumber(cost.helium3)}</span>}
+                      <div className="grid grid-cols-2 gap-1 text-[11px]">
+                        {cost.oxygen  > 0 && <MineCostRow label="O₂"  cost={cost.oxygen}  have={resourceState?.oxygen}  color="text-sky-400" />}
+                        {cost.water   > 0 && <MineCostRow label="H₂O" cost={cost.water}   have={resourceState?.water}   color="text-blue-400" />}
+                        {cost.iron    > 0 && <MineCostRow label="Fe"   cost={cost.iron}    have={resourceState?.iron}    color="text-orange-400" />}
+                        {cost.helium3 > 0 && <MineCostRow label="He3"  cost={cost.helium3} have={resourceState?.helium3} color="text-red-400" />}
                       </div>
                       <div className="text-[10px] text-slate-500 text-center">
                         Time: {formatCountdown(new Date(Date.now() + cost.timeSeconds * 1000))}
@@ -155,6 +155,21 @@ export default function ResourceDetail() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MineCostRow({ label, cost, have, color }) {
+  const h = Math.floor(have ?? 0);
+  const canAfford = h >= cost;
+  return (
+    <div className="flex items-center justify-between">
+      <span className={color}>{label}</span>
+      <span className="font-mono text-[10px]">
+        <span className={canAfford ? 'text-white' : 'text-red-400'}>{formatNumber(cost)}</span>
+        <span className="text-slate-500 mx-0.5">/</span>
+        <span className={canAfford ? 'text-green-400' : 'text-red-400'}>{formatNumber(h)}</span>
+      </span>
     </div>
   );
 }

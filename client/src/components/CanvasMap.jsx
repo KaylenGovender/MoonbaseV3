@@ -222,7 +222,7 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     return (bases ?? []).find((b) => {
       const dx = b.x - km_x;
       const dy = b.y - km_y;
-      return Math.sqrt(dx * dx + dy * dy) < 3;
+      return Math.sqrt(dx * dx + dy * dy) < 5;
     });
   }
 
