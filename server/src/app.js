@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import authRoutes from './routes/auth.js';
 import baseRoutes from './routes/base.js';
 import mapRoutes from './routes/map.js';
@@ -11,6 +13,9 @@ import leaderboardRoutes from './routes/leaderboard.js';
 import seasonRoutes from './routes/season.js';
 import tradepodRoutes from './routes/tradepod.js';
 import adminRoutes from './routes/admin.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLIENT_DIST = join(__dirname, '..', '..', 'client', 'dist');
 
 const app = express();
 
@@ -45,7 +50,8 @@ app.use('/api/season',      seasonRoutes);
 app.use('/api/tradepod',    tradepodRoutes);
 app.use('/api/admin',       adminRoutes);
 
-// 404
-app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+// Serve built React client
+app.use(express.static(CLIENT_DIST));
+app.get('*', (_req, res) => res.sendFile(join(CLIENT_DIST, 'index.html')));
 
 export default app;

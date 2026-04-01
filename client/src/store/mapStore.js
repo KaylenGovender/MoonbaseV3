@@ -18,6 +18,16 @@ export const useMapStore = create((set) => ({
       visRadius:     data.visRadius      ?? 10,
     }),
 
+  // Transition an in-flight attack to RETURNING with win result
+  transitionAttackReturning: ({ attackId, returnTime, attackerWon }) =>
+    set((state) => ({
+      attacks: state.attacks.map((a) =>
+        a.id === attackId
+          ? { ...a, status: 'RETURNING', returnTime, attackerWon }
+          : a,
+      ),
+    })),
+
   removeAttack: (attackId) =>
     set((state) => ({
       attacks: state.attacks.filter((a) => a.id !== attackId),

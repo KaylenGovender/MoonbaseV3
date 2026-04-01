@@ -57,6 +57,7 @@ router.get('/bases', requireAuth, async (req, res) => {
       include: {
         attackerBase: { select: { x: true, y: true, userId: true } },
         defenderBase: { select: { x: true, y: true, userId: true } },
+        battleReport: { select: { attackerWon: true } },
       },
     });
 
@@ -90,7 +91,18 @@ router.get('/bases', requireAuth, async (req, res) => {
       playerBaseIds: playerBases.map((b) => b.id),
       visRadius,
       playerBases: playerBases.map((b) => ({ id: b.id, x: b.x, y: b.y })),
-      attacks: activeAttacks,
+      attacks: activeAttacks.map((a) => ({
+        id:              a.id,
+        attackerBaseId:  a.attackerBaseId,
+        defenderBaseId:  a.defenderBaseId,
+        attackerBase:    a.attackerBase,
+        defenderBase:    a.defenderBase,
+        launchTime:      a.launchTime,
+        arrivalTime:     a.arrivalTime,
+        status:          a.status,
+        returnTime:      a.returnTime,
+        attackerWon:     a.battleReport?.attackerWon ?? null,
+      })),
       tradePods: activePods,
     });
   } catch (err) {

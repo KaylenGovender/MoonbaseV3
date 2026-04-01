@@ -9,6 +9,7 @@ export default function Alliance() {
   const { socket } = useSocketStore();
   const [alliance,  setAlliance]  = useState(null);
   const [invites,   setInvites]   = useState([]);
+  const [alliances, setAlliances] = useState([]);
   const [tab,       setTab]       = useState('info');
   const [messages,  setMessages]  = useState([]);
   const [msgInput,  setMsgInput]  = useState('');
@@ -16,6 +17,7 @@ export default function Alliance() {
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
   const [createName,setCreateName]= useState('');
+  const [joinRequests, setJoinRequests] = useState([]);
   const chatRef = useRef(null);
 
   async function load() {
@@ -26,9 +28,16 @@ export default function Alliance() {
         const msgs = await api.get(`/chat/alliance/${d.alliance.id}`);
         setMessages(msgs.messages ?? []);
         socket?.emit('chat:join_alliance', { allianceId: d.alliance.id });
+        // Load join requests if leader
+        if (d.alliance.leaderId === user?.id) {
+          const rq = await api.get(`/alliance/${d.alliance.id}/requests`);
+          setJoinRequests(rq.requests ?? []);
+        }
       } else {
         const inv = await api.get('/alliance/invites/mine');
         setInvites(inv.invites ?? []);
+        const lst = await api.get('/alliance/list/all');
+        setAlliances(lst.alliances ?? []);
       }
     } catch (e) {
       setError(e.message);
@@ -47,6 +56,34 @@ export default function Alliance() {
     });
     return () => socket.off('chat:message');
   }, [socket, alliance]);
+
+  async function requestToJoin(allianceId) {
+    setError('');
+    try {
+      await api.post(`/alliance/${allianceId}/request`, {});
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function acceptJoinRequest(requestId) {
+    try {
+      await api.post(`/alliance/request/${requestId}/accept`, {});
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function declineJoinRequest(requestId) {
+    try {
+      await api.post(`/alliance/request/${requestId}/decline`, {});
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   async function createAlliance() {
     setError('');
@@ -110,7 +147,7 @@ export default function Alliance() {
     }
   }
 
-
+  async function sendMessage() {
     if (!msgInput.trim() || !alliance) return;
     socket?.emit('chat:send', { allianceId: alliance.id, message: msgInput.trim() });
     setMsgInput('');
@@ -152,6 +189,17 @@ export default function Alliance() {
               Create Alliance
             </button>
           </div>
+
+          {alliances.length > 0 && (
+            <div>
+              <p className="section-title">Browse Alliances</p>
+              <div className="space-y-2">
+                {alliances.map((a) => (
+                  <AllianceCard key={a.id} alliance={a} onRequest={requestToJoin} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -207,6 +255,21 @@ export default function Alliance() {
 
       {tab === 'members' && (
         <div className="px-4 py-4 space-y-4">
+          {isLeader && joinRequests.length > 0 && (
+            <div className="space-y-2">
+              <p className="section-title" style={{color:'#facc15'}}>⏳ Join Requests</p>
+              {joinRequests.map((req) => (
+                <div key={req.id} className="card flex items-center justify-between">
+                  <span className="text-sm text-white">{req.invitedUser?.username}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => acceptJoinRequest(req.id)} className="btn-primary text-xs px-3 py-1">Accept</button>
+                    <button onClick={() => declineJoinRequest(req.id)} className="btn-ghost text-xs px-3 py-1 text-red-400">Decline</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-2">
             {(alliance.members ?? []).map((m) => (
               <div key={m.userId} className="card flex items-center justify-between">
@@ -270,6 +333,44 @@ export default function Alliance() {
             />
             <button onClick={sendMessage} className="btn-primary px-4 py-2">Send</button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AllianceCard({ alliance: a, onRequest }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-white font-medium">{a.name}</div>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs text-slate-400 hover:text-sky-400 transition-colors"
+          >
+            {a.memberCount} member{a.memberCount !== 1 ? 's' : ''} {expanded ? '▲' : '▼'}
+          </button>
+        </div>
+        {a.hasRequested ? (
+          <span className="text-xs text-yellow-400 font-medium">Requested</span>
+        ) : (
+          <button
+            onClick={() => onRequest(a.id)}
+            className="btn-ghost text-xs px-3 py-1 text-blue-400"
+          >
+            Request to Join
+          </button>
+        )}
+      </div>
+      {expanded && a.members?.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-space-600/40 flex flex-wrap gap-1">
+          {a.members.map((username) => (
+            <span key={username} className="text-xs bg-space-700 text-slate-300 px-2 py-0.5 rounded-full">
+              {username}
+            </span>
+          ))}
         </div>
       )}
     </div>

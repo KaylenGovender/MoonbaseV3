@@ -50,18 +50,15 @@ router.get('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Last 10 battle reports (in + out)
-    const attackIds = [
-      ...base.attacksLaunched.map((a) => a.id),
-      ...base.attacksReceived.map((a) => a.id),
-    ];
+    // Last 20 battle reports (in + out) — include RETURNING (report exists) + COMPLETED
     const recentAttacks = await prisma.attack.findMany({
       where: {
         OR: [
           { attackerBaseId: base.id },
           { defenderBaseId: base.id },
         ],
-        status: 'COMPLETED',
+        status: { in: ['RETURNING', 'COMPLETED'] },
+        battleReport: { isNot: null },
       },
       include: {
         battleReport: true,

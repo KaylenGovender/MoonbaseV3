@@ -4,7 +4,132 @@ import { prisma } from '../prisma/client.js';
 
 const router = Router();
 
-// POST /api/alliance/create
+// GET /api/alliance/list — all alliances in current season (for browsing)
+router.get('/list/all', requireAuth, async (req, res) => {
+  try {
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return res.json({ alliances: [] });
+
+    // Check if user is already in an alliance
+    const myMembership = await prisma.allianceMember.findFirst({ where: { userId: req.user.id } });
+
+    const alliances = await prisma.alliance.findMany({
+      where: { seasonId: season.id },
+      include: {
+        members: {
+          include: { user: { select: { username: true } } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Get pending requests sent by this user
+    const myRequests = await prisma.allianceInvite.findMany({
+      where: { invitedUserId: req.user.id, type: 'JOIN_REQUEST', status: 'PENDING' },
+    });
+    const requestedIds = new Set(myRequests.map((r) => r.allianceId));
+
+    res.json({
+      alliances: alliances.map((a) => ({
+        id:           a.id,
+        name:         a.name,
+        memberCount:  a.members.length,
+        members:      a.members.map((m) => m.user.username),
+        hasRequested: requestedIds.has(a.id),
+      })),
+      alreadyInAlliance: !!myMembership,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/alliance/:id/request — player requests to join
+router.post('/:id/request', requireAuth, async (req, res) => {
+  try {
+    const alliance = await prisma.alliance.findUnique({
+      where: { id: req.params.id },
+      include: { members: true },
+    });
+    if (!alliance) return res.status(404).json({ error: 'Alliance not found' });
+
+    const existing = await prisma.allianceMember.findFirst({ where: { userId: req.user.id } });
+    if (existing) return res.status(400).json({ error: 'Already in an alliance' });
+
+    const alreadyRequested = await prisma.allianceInvite.findFirst({
+      where: { allianceId: alliance.id, invitedUserId: req.user.id, type: 'JOIN_REQUEST', status: 'PENDING' },
+    });
+    if (alreadyRequested) return res.status(400).json({ error: 'Request already pending' });
+
+    await prisma.allianceInvite.create({
+      data: {
+        allianceId:    alliance.id,
+        invitedUserId: req.user.id,
+        type:          'JOIN_REQUEST',
+        status:        'PENDING',
+      },
+    });
+
+    res.status(201).json({ message: 'Request sent' });
+  } catch (err) {
+    console.error('[alliance/request]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/alliance/:id/requests — leader sees pending join requests
+router.get('/:id/requests', requireAuth, async (req, res) => {
+  try {
+    const alliance = await prisma.alliance.findUnique({ where: { id: req.params.id } });
+    if (!alliance) return res.status(404).json({ error: 'Not found' });
+    if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    const requests = await prisma.allianceInvite.findMany({
+      where: { allianceId: req.params.id, type: 'JOIN_REQUEST', status: 'PENDING' },
+      include: { invitedUser: { select: { id: true, username: true } } },
+    });
+    res.json({ requests });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/alliance/request/:requestId/accept — leader accepts join request
+router.post('/request/:requestId/accept', requireAuth, async (req, res) => {
+  try {
+    const request = await prisma.allianceInvite.findUnique({ where: { id: req.params.requestId } });
+    if (!request || request.type !== 'JOIN_REQUEST' || request.status !== 'PENDING') {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    const alliance = await prisma.alliance.findUnique({ where: { id: request.allianceId } });
+    if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    await prisma.allianceInvite.update({ where: { id: request.id }, data: { status: 'ACCEPTED' } });
+    await prisma.allianceMember.create({
+      data: { allianceId: request.allianceId, userId: request.invitedUserId },
+    });
+    res.json({ message: 'Accepted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/alliance/request/:requestId/decline — leader declines join request
+router.post('/request/:requestId/decline', requireAuth, async (req, res) => {
+  try {
+    const request = await prisma.allianceInvite.findUnique({ where: { id: req.params.requestId } });
+    if (!request || request.type !== 'JOIN_REQUEST') return res.status(404).json({ error: 'Not found' });
+    const alliance = await prisma.alliance.findUnique({ where: { id: request.allianceId } });
+    if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    await prisma.allianceInvite.update({ where: { id: request.id }, data: { status: 'DECLINED' } });
+    res.json({ message: 'Declined' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 router.post('/create', requireAuth, async (req, res) => {
   try {
     const { name } = req.body;

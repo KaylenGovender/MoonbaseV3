@@ -186,6 +186,8 @@ enum AttackStatus {
 model BattleReport {
   id                   String   @id @default(cuid())
   attackId             String   @unique
+  attackingUnits       Json
+  defendingUnits       Json
   attackerUnitsLost    Json
   defenderUnitsLost    Json
   resourcesLooted      Json
@@ -229,10 +231,16 @@ model AllianceInvite {
   allianceId    String
   invitedUserId String
   status        InviteStatus @default(PENDING)
+  type          InviteType   @default(INVITE)
   createdAt     DateTime     @default(now())
 
   alliance    Alliance @relation(fields: [allianceId], references: [id])
   invitedUser User     @relation(fields: [invitedUserId], references: [id])
+}
+
+enum InviteType {
+  INVITE
+  JOIN_REQUEST
 }
 
 enum InviteStatus {

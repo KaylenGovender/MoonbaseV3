@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useBaseStore } from '../store/baseStore.js';
+import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import ResourceGauge from '../components/ResourceGauge.jsx';
 import BuildingCard from '../components/BuildingCard.jsx';
@@ -15,6 +16,7 @@ export default function Base() {
   const user          = useAuthStore((s) => s.user);
   const logout        = useAuthStore((s) => s.logout);
   const { base, resources, rates, recentAttacks, setBase, setLoading, setError } = useBaseStore();
+  const { socket } = useSocketStore();
 
   const load = useCallback(async () => {
     if (!activeBaseId) return;
@@ -30,6 +32,19 @@ export default function Base() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Refresh base data as soon as a battle report arrives
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('combat:report',    load);
+    socket.on('combat:completed', load);
+    socket.on('combat:loot_returned', load);
+    return () => {
+      socket.off('combat:report',    load);
+      socket.off('combat:completed', load);
+      socket.off('combat:loot_returned', load);
+    };
+  }, [socket, load]);
 
   if (!base) {
     return (
@@ -115,7 +130,11 @@ export default function Base() {
 
         {/* Battle Reports */}
         <section>
-          <BattleReports attacks={recentAttacks} baseId={base.id} />
+          <BattleReports
+            attacks={recentAttacks}
+            baseId={base.id}
+            activeAttacksOut={(base.attacksLaunched ?? []).length}
+          />
         </section>
       </div>
     </div>

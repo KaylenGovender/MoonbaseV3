@@ -175,6 +175,8 @@ export async function resolveBattle(attack) {
   const report = await prisma.battleReport.create({
     data: {
       attackId:            attack.id,
+      attackingUnits,
+      defendingUnits,
       attackerUnitsLost,
       defenderUnitsLost,
       resourcesLooted,

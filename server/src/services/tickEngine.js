@@ -161,9 +161,12 @@ export async function runTick() {
           report,
           role: 'defender',
         });
-        // Remove red incoming line from map
-        io.to(`map:season:${(await prisma.base.findUnique({ where: { id: attack.defenderBaseId }, select: { seasonId: true } })).seasonId}`).emit('map:attack_resolved', {
-          attackId: attack.id,
+        // Transition attack line to returning (green/red based on winner)
+        const seasonId = (await prisma.base.findUnique({ where: { id: attack.defenderBaseId }, select: { seasonId: true } })).seasonId;
+        io.to(`map:season:${seasonId}`).emit('map:attack_returning', {
+          attackId:    attack.id,
+          returnTime,
+          attackerWon,
         });
       }
     }
@@ -189,6 +192,14 @@ export async function runTick() {
             resources: attack.battleReport.resourcesLooted,
           });
         }
+      }
+
+      if (io) {
+        // Always notify both sides when attack fully completes so they refresh reports
+        io.to(`base:${attack.attackerBaseId}`).emit('combat:completed', { attackId: attack.id });
+        io.to(`base:${attack.defenderBaseId}`).emit('combat:completed', { attackId: attack.id });
+        const seasonId = (await prisma.base.findUnique({ where: { id: attack.attackerBaseId }, select: { seasonId: true } })).seasonId;
+        io.to(`map:season:${seasonId}`).emit('map:attack_completed', { attackId: attack.id });
       }
     }
 
