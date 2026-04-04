@@ -3,7 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber, formatCountdown } from '../utils/format.js';
-import { BUILDING_META, siloCapacity, bunkerProtection, radarRange, constructionYardReduction } from '../utils/gameConstants.js';
+import {
+  BUILDING_META,
+  siloCapacity as defaultSiloCapacity,
+  bunkerProtection as defaultBunkerProtection,
+  radarRange as defaultRadarRange,
+  constructionYardReduction as defaultCyReduction,
+} from '../utils/gameConstants.js';
 
 const TYPE_UPPER_MAP = {
   silo: 'SILO', bunker: 'BUNKER', research_lab: 'RESEARCH_LAB',
@@ -11,35 +17,31 @@ const TYPE_UPPER_MAP = {
   alliance: 'ALLIANCE', trade_pod: 'TRADE_POD',
 };
 
-function buildingLevelCost(type, level) {
-  const baseCosts = {
-    SILO:              { oxygen: 160, water:  96, iron: 160, helium3: 16, time: 240 },
-    BUNKER:            { oxygen:  96, water:  64, iron: 240, helium3: 16, time: 360 },
-    RESEARCH_LAB:      { oxygen: 320, water: 160, iron: 320, helium3: 32, time: 480 },
-    RADAR:             { oxygen: 256, water: 128, iron: 192, helium3: 16, time: 360 },
-    WAR_ROOM:          { oxygen: 192, water: 256, iron: 320, helium3: 64, time: 480 },
-    CONSTRUCTION_YARD: { oxygen: 320, water: 192, iron: 480, helium3: 32, time: 720 },
-    ALLIANCE:          { oxygen: 160, water: 160, iron: 160, helium3: 32, time: 240 },
-    TRADE_POD:         { oxygen: 128, water: 128, iron: 128, helium3: 64, time: 360 },
-  };
-  const b = baseCosts[type];
-  if (!b || level < 1 || level > 20) return null;
-  const m = Math.pow(1.6, level - 1);
+function buildingLevelCost(type, level, gameConfig) {
+  const bases = gameConfig?.buildingBases?.[type];
+  if (!bases || level < 1 || level > 20) return null;
+  const i = level - 1;
+  const m = Math.pow(1.6, i);
   return {
-    oxygen:      Math.round(b.oxygen  * m),
-    water:       Math.round(b.water   * m),
-    iron:        Math.round(b.iron    * m),
-    helium3:     Math.round(b.helium3 * m),
-    timeSeconds: Math.round(b.time    * Math.pow(1.8, level - 1)),
+    oxygen:      Math.round(bases.oxygen  * m),
+    water:       Math.round(bases.water   * m),
+    iron:        Math.round(bases.iron    * m),
+    helium3:     Math.round(bases.helium3 * m),
+    timeSeconds: Math.round(bases.time    * Math.pow(1.35, i)),
   };
 }
 
-function getBuildingEffect(type, level) {
+function getBuildingEffect(type, level, special) {
+  const siloBase     = special?.siloBase     ?? 1500;
+  const siloPerLevel = special?.siloPerLevel ?? 500;
+  const bunkerMax    = special?.bunkerMaxPct ?? 40;
+  const radarBase    = special?.radarBase    ?? 20;
+  const radarPer     = special?.radarPerLevel ?? 5;
   switch (type) {
-    case 'SILO':              return `Storage: ${formatNumber(siloCapacity(level))} per resource`;
-    case 'BUNKER':            return `Protects ${bunkerProtection(level)}% of resources from raiders`;
-    case 'RADAR':             return `Visibility: ${radarRange(level)} km radius`;
-    case 'CONSTRUCTION_YARD': return `Build time reduction: ${constructionYardReduction(level)}%`;
+    case 'SILO':              return `Storage: ${formatNumber(siloBase + level * siloPerLevel)} per resource`;
+    case 'BUNKER':            return `Protects ${Math.min(level * 2, bunkerMax)}% of resources from raiders`;
+    case 'RADAR':             return `Visibility: ${radarBase + level * radarPer} km radius`;
+    case 'CONSTRUCTION_YARD': return `Build time reduction: ${Math.min(level * 1.5, 30)}%`;
     case 'RESEARCH_LAB':      return level >= 20 ? '✓ Extra base unlocked' : `${20 - level} more levels to unlock extra base`;
     case 'WAR_ROOM':          return `Reduces unit training time by ${Math.min(level * 3, 50)}% (enables training at L1)`;
     case 'ALLIANCE':          return `Max alliance size: ${level} members`;
@@ -52,6 +54,8 @@ export default function BuildingDetail() {
   const { buildingType } = useParams();
   const navigate          = useNavigate();
   const activeBaseId      = useAuthStore((s) => s.activeBaseId);
+  const gameConfig        = useAuthStore((s) => s.gameConfig);
+  const gameSpecial       = useAuthStore((s) => s.gameSpecial);
   const typeKey           = TYPE_UPPER_MAP[buildingType] ?? buildingType.toUpperCase();
   const meta              = BUILDING_META[typeKey] ?? { icon: '🏢', label: typeKey };
 
@@ -98,7 +102,7 @@ export default function BuildingDetail() {
 
   const currentLevel = building?.level ?? 0;
   const nextLevel    = currentLevel + 1;
-  const cost         = nextLevel <= 20 ? buildingLevelCost(typeKey, nextLevel) : null;
+  const cost         = nextLevel <= 20 ? buildingLevelCost(typeKey, nextLevel, gameConfig) : null;
   const anyUpgrading = buildings.some((b) => b.upgradeEndsAt);
   const isUpgrading  = !!building?.upgradeEndsAt;
   const isMaxLevel   = currentLevel >= 20;
@@ -106,7 +110,7 @@ export default function BuildingDetail() {
   // new target, so we subtract 1 to get what the building is actually at right now.
   const effectiveLevel = isUpgrading ? currentLevel - 1 : currentLevel;
   const cyBuilding   = buildings.find((b) => b.type === 'CONSTRUCTION_YARD');
-  const reduction    = constructionYardReduction(cyBuilding?.level ?? 0);
+  const reduction    = Math.min((cyBuilding?.level ?? 0) * 1.5, 30);
   const adjustedTime = cost ? Math.round(cost.timeSeconds * (1 - reduction / 100)) : 0;
 
   return (
@@ -129,7 +133,7 @@ export default function BuildingDetail() {
             <span className="text-slate-400 text-sm">Current Level</span>
             <span className="text-2xl font-bold text-white font-mono">{effectiveLevel}</span>
           </div>
-          <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, effectiveLevel)}</div>
+          <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, effectiveLevel, gameSpecial)}</div>
         </div>
 
         {isUpgrading ? (
@@ -163,7 +167,7 @@ export default function BuildingDetail() {
 
             <div>
               <div className="section-title">Next Level Effect</div>
-              <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, nextLevel)}</div>
+              <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, nextLevel, gameSpecial)}</div>
             </div>
 
             <button

@@ -111,10 +111,11 @@ router.get('/bases', requireAuth, async (req, res) => {
       }),
       playerBaseIds: playerBases.map((b) => b.id),
       visRadius,
-      playerBases: playerBases.map((b) => ({
-        id: b.id, x: b.x, y: b.y,
-        radarLevel: radarBuildings.find((rb) => rb.baseId === b.id)?.level ?? 1,
-      })),
+      playerBases: playerBases.map((b) => {
+        const rb = radarBuildings.find((r) => r.baseId === b.id);
+        const effectiveRadar = rb ? (rb.upgradeEndsAt ? rb.level - 1 : rb.level) : 1;
+        return { id: b.id, x: b.x, y: b.y, radarLevel: effectiveRadar };
+      }),
       attacks: activeAttacks.map((a) => ({
         id:              a.id,
         attackerBaseId:  a.attackerBaseId,

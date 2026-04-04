@@ -12,7 +12,10 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch((e) => {
+    console.error('[api] JSON parse error:', e.message);
+    return {};
+  });
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }

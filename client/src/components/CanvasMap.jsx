@@ -228,6 +228,7 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     const attacksList = attacks ?? [];
     const BASE_R = 8; // match hex base radius for line offset
     for (const attack of attacksList) {
+      if (!attack.attackerBase || !attack.defenderBase) continue;
       const ax = kmToWorld(attack.attackerBase.x, cs);
       const ay = kmToWorld(attack.attackerBase.y, cs);
       const dx = kmToWorld(attack.defenderBase.x, cs);
@@ -288,7 +289,8 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
       } else {
         const launch   = new Date(attack.launchTime).getTime();
         const arrival  = new Date(attack.arrivalTime).getTime();
-        const progress = Math.min((now - launch) / (arrival - launch), 1);
+        const elapsed  = arrival - launch;
+        const progress = elapsed > 0 ? Math.min((now - launch) / elapsed, 1) : 1;
         const mx = sax + (sdx - sax) * progress;
         const my = say + (sdy - say) * progress;
         // Dotted full path to destination
@@ -306,13 +308,15 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
 
     // Trade pod lines
     for (const pod of (tradePods ?? [])) {
+      if (!pod.fromBase || !pod.toBase) continue;
       const fx = kmToWorld(pod.fromBase.x, cs);
       const fy = kmToWorld(pod.fromBase.y, cs);
       const tx = kmToWorld(pod.toBase.x, cs);
       const ty = kmToWorld(pod.toBase.y, cs);
       const launch   = new Date(pod.launchTime).getTime();
       const arrival  = new Date(pod.arrivalTime).getTime();
-      const progress = Math.min((now - launch) / (arrival - launch), 1);
+      const elapsed  = arrival - launch;
+      const progress = elapsed > 0 ? Math.min((now - launch) / elapsed, 1) : 1;
       const px = fx + (tx - fx) * progress;
       const py = fy + (ty - fy) * progress;
       ctx.setLineDash([3, 6]);

@@ -17,10 +17,12 @@ export const useSocketStore = create((set, get) => ({
   clearChatNotif:     () => set({ chatNotif: false }),
 
   connect: (token) => {
-    // Destroy any existing socket before creating a new one (prevents duplicates)
+    // Destroy any existing socket before creating a new one (prevents duplicate listeners)
     const existing = get().socket;
-    if (existing?.connected) return;
-    if (existing) existing.disconnect();
+    if (existing) {
+      existing.removeAllListeners();
+      existing.disconnect();
+    }
 
     const socket = io('/', {
       auth: { token },
@@ -95,7 +97,11 @@ export const useSocketStore = create((set, get) => ({
   },
 
   disconnect: () => {
-    get().socket?.disconnect();
+    const s = get().socket;
+    if (s) {
+      s.removeAllListeners();
+      s.disconnect();
+    }
     set({ socket: null, connected: false });
   },
 }));

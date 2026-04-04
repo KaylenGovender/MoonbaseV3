@@ -133,14 +133,20 @@ router.post('/:id/transfer', requireAuth, async (req, res) => {
     const totalRes = Object.values(resAmounts).reduce((a, b) => a + b, 0);
 
     if (totalRes > 0) {
-      const ok = await deductResources(fromBaseId, resAmounts);
-      if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
-
-      await addResources(toBaseId, resAmounts);
+      // Wrap in transaction to prevent resource loss if addResources fails
+      await prisma.$transaction(async () => {
+        const ok = await deductResources(fromBaseId, resAmounts);
+        if (!ok) throw new Error('Insufficient resources');
+        await addResources(toBaseId, resAmounts);
+      });
     }
 
     // ── Units (atomic transaction to prevent race conditions) ─────────────
-    const unitEntries = Object.entries(units).filter(([, qty]) => Math.floor(qty) > 0);
+    const unitEntries = Object.entries(units).filter(([type, qty]) => {
+      if (Math.floor(qty) <= 0) return false;
+      if (!ALL_UNIT_TYPES.includes(type)) return false;
+      return true;
+    });
 
     if (unitEntries.length > 0) {
       await prisma.$transaction(async (tx) => {
@@ -167,8 +173,11 @@ router.post('/:id/transfer', requireAuth, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
+    if (err.message === 'Insufficient resources') {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('[base/transfer]', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 

@@ -3,30 +3,24 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
-import { RESOURCE_META, siloCapacity, mineRate, MINE_RATE_PER_LEVEL } from '../utils/gameConstants.js';
+import { RESOURCE_META, mineRate, MINE_RATE_PER_LEVEL } from '../utils/gameConstants.js';
 import { formatNumber, formatRate, formatCountdown } from '../utils/format.js';
 
 const TYPE_MAP = {
   oxygen: 'OXYGEN', water: 'WATER', iron: 'IRON', helium3: 'HELIUM3',
 };
 
-const MINE_BASE_COSTS = {
-  OXYGEN:  { oxygen: 32,  water: 64,  iron: 96,  helium3: 32, timeSeconds: 120 },
-  WATER:   { oxygen: 64,  water: 32,  iron: 80,  helium3: 32, timeSeconds: 120 },
-  IRON:    { oxygen: 96,  water: 64,  iron: 64,  helium3: 32, timeSeconds: 120 },
-  HELIUM3: { oxygen: 192, water: 128, iron: 160, helium3: 32, timeSeconds: 240 },
-};
-
-function mineLevelCost(type, level) {
-  const b = MINE_BASE_COSTS[type];
-  if (!b) return null;
-  const m = Math.pow(1.5, level - 1);
+function mineLevelCost(type, level, gameConfig) {
+  const bases = gameConfig?.mineBases?.[type];
+  if (!bases) return null;
+  const i = level - 1;
+  const m = Math.pow(1.5, i);
   return {
-    oxygen:      Math.round(b.oxygen      * m),
-    water:       Math.round(b.water       * m),
-    iron:        Math.round(b.iron        * m),
-    helium3:     Math.round(b.helium3     * m),
-    timeSeconds: Math.round(b.timeSeconds * Math.pow(1.5, level - 1)),
+    oxygen:      Math.round(bases.oxygen  * m),
+    water:       Math.round(bases.water   * m),
+    iron:        Math.round(bases.iron    * m),
+    helium3:     Math.round(bases.helium3 * m),
+    timeSeconds: Math.round(bases.time    * Math.pow(1.5, i)),
   };
 }
 
@@ -34,6 +28,7 @@ export default function ResourceDetail() {
   const { type } = useParams();
   const navigate  = useNavigate();
   const activeBaseId = useAuthStore((s) => s.activeBaseId);
+  const gameConfig   = useAuthStore((s) => s.gameConfig);
   const { socket }   = useSocketStore();
   const resourceType = TYPE_MAP[type] ?? 'OXYGEN';
   const meta         = RESOURCE_META[resourceType];
@@ -156,7 +151,7 @@ export default function ResourceDetail() {
               // Use effective level — during upgrade the DB stores target level already
               const effLevel    = isUpgrading ? mine.level - 1 : mine.level;
               const nextLevel   = effLevel + 1;
-              const cost        = nextLevel <= 20 ? mineLevelCost(resourceType, nextLevel) : null;
+              const cost        = nextLevel <= 20 ? mineLevelCost(resourceType, nextLevel, gameConfig) : null;
               const currentRate = mineRate(resourceType, effLevel);
               const nextRate    = mineRate(resourceType, effLevel + 1);
               return (

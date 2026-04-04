@@ -5,6 +5,7 @@ export const useBaseStore = create((set, get) => ({
   resources:     null,
   rates:         null,
   recentAttacks: [],
+  toasts:        [],
   loading:       false,
   error:         null,
 
@@ -50,6 +51,16 @@ export const useBaseStore = create((set, get) => ({
   addBattleReport: (report) =>
     set((state) => ({
       recentAttacks: [report, ...state.recentAttacks].slice(0, 20),
+    })),
+
+  addToast: (toast) =>
+    set((state) => ({
+      toasts: [...state.toasts, { ...toast, id: Date.now() + Math.random() }],
+    })),
+
+  dismissToast: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
     })),
 
   setLoading: (loading) => set({ loading }),

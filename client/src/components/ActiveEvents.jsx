@@ -103,7 +103,7 @@ export default function ActiveEvents({ base }) {
         />
       ))}
 
-      {groupedBuildQueues.map((job) => {
+      {groupedBuildQueues.map((job, idx) => {
         const uMeta = UNIT_META[job.unitType];
         // If remaining > 1 (grouped), show "Nx remaining, next in..."
         // If single: "Building 1× unit"
@@ -113,7 +113,7 @@ export default function ActiveEvents({ base }) {
           : `Building 1× ${uMeta?.label ?? formatUnitName(job.unitType)}`;
         return (
         <EventRow
-          key={job.unitType}
+          key={`${job.unitType}-${idx}`}
           icon={<UnitIcon type={job.unitType} size={18} />}
           color="text-blue-400"
           bg="bg-blue-900/20 border-blue-800/40"

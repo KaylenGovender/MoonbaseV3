@@ -17,13 +17,18 @@ export default function DMChat({ targetUserId, targetUsername, onClose }) {
     api.get(`/chat/dm/${targetUserId}`)
       .then((d) => {
         setMessages(d.messages ?? []);
-        setTimeout(() => chatRef.current?.scrollTo({ top: 99999 }), 50);
+        setTimeout(() => {
+          if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        }, 50);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
 
     socket?.emit('chat:join_dm', { withUserId: targetUserId });
-  }, [targetUserId]);
+    return () => {
+      socket?.emit('chat:leave_dm', { withUserId: targetUserId });
+    };
+  }, [targetUserId, socket]);
 
   // Listen for incoming DM messages
   useEffect(() => {

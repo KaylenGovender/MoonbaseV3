@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore.js';
+import { useBaseStore } from './store/baseStore.js';
 import { useSocketStore } from './store/socketStore.js';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
@@ -22,6 +23,37 @@ const VERSION_CHECK_KEY = 'versionReloaded';
 function RequireAuth({ children }) {
   const token = useAuthStore((s) => s.token);
   return token ? children : <Navigate to="/login" replace />;
+}
+
+function ToastContainer() {
+  const toasts = useBaseStore((s) => s.toasts);
+  const dismissToast = useBaseStore((s) => s.dismissToast);
+
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    const latest = toasts[toasts.length - 1];
+    const timer = setTimeout(() => dismissToast(latest.id), 5000);
+    return () => clearTimeout(timer);
+  }, [toasts.length]);
+
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed top-2 right-2 z-50 space-y-2 max-w-xs">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`px-4 py-2 rounded-lg text-sm shadow-lg cursor-pointer ${
+            t.type === 'warning'
+              ? 'bg-yellow-900/90 border border-yellow-600/50 text-yellow-200'
+              : 'bg-red-900/90 border border-red-600/50 text-red-200'
+          }`}
+          onClick={() => dismissToast(t.id)}
+        >
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function AuthLayout({ children }) {
@@ -86,6 +118,7 @@ function AuthLayout({ children }) {
       )}
       {children}
       <NavBar />
+      <ToastContainer />
     </div>
   );
 }

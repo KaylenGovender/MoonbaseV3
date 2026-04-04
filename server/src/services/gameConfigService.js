@@ -95,7 +95,7 @@ export async function initGameConfig() {
 export function getGameConfig() { return _config; }
 
 // Nested sections that need deep merge (each sub-key is a type with its own properties)
-const NESTED_SECTIONS = new Set(['unitStats', 'buildingBases', 'mineBases']);
+const NESTED_SECTIONS = new Set(['unitStats', 'buildingBases', 'mineBases', 'heliumUpkeep']);
 
 function deepMergeSection(section, data) {
   if (NESTED_SECTIONS.has(section)) {

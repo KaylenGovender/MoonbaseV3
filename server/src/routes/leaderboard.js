@@ -143,14 +143,14 @@ router.get('/user/:userId', async (req, res) => {
     const attackerMedals = medals.filter((m) => m.rewardGiven && m.attackerPoints > 0).length;
     const defenderMedals = medals.filter((m) => m.rewardGiven && m.defenderPoints > 0).length;
     const raiderMedals   = medals.filter((m) => m.rewardGiven && m.raiderPoints > 0).length;
-    const victoryMedals  = medals.filter((m) => m.weekNumber === 0).length;
+    const victoryMedals  = medals.filter((m) => m.rewardGiven && m.weekNumber === 0).length;
 
     // Lifetime medal counts across ALL seasons
     const allMedals = await prisma.medal.findMany({ where: { userId } });
     const lifetimeAttackerMedals = allMedals.filter((m) => m.rewardGiven && m.attackerPoints > 0).length;
     const lifetimeDefenderMedals = allMedals.filter((m) => m.rewardGiven && m.defenderPoints > 0).length;
     const lifetimeRaiderMedals   = allMedals.filter((m) => m.rewardGiven && m.raiderPoints > 0).length;
-    const lifetimeVictoryMedals  = allMedals.filter((m) => m.weekNumber === 0).length;
+    const lifetimeVictoryMedals  = allMedals.filter((m) => m.rewardGiven && m.weekNumber === 0).length;
 
     const totalAttacker = medals.reduce((s, m) => s + m.attackerPoints, 0);
     const totalDefender = medals.reduce((s, m) => s + m.defenderPoints, 0);

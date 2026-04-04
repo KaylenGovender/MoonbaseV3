@@ -134,7 +134,7 @@ router.get('/:baseId', requireAuth, async (req, res) => {
 
     const [outgoing, incoming] = await Promise.all([
       prisma.reinforcement.findMany({
-        where: { fromBaseId: baseId, status: { in: ['IN_TRANSIT', 'ARRIVED', 'RECALLED'] } },
+        where: { fromBaseId: baseId, status: { in: ['IN_TRANSIT', 'ARRIVED', 'RECALLED', 'RETURNED'] } },
         include: { toBase: { select: { name: true } } },
       }),
       prisma.reinforcement.findMany({
@@ -178,7 +178,7 @@ router.post('/:id/return', requireAuth, async (req, res) => {
 
     await prisma.reinforcement.update({
       where: { id },
-      data: { status: 'RECALLED', returnTime },
+      data: { status: 'RETURNED', returnTime },
     });
 
     res.json({ message: 'Returning reinforcements', returnTime });

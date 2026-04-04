@@ -52,27 +52,32 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
     const stats = getUnitStatsMap()[unitType];
     if (!stats) return res.status(400).json({ error: 'Invalid unit type' });
 
-    // Titan: max 1 per player
+    // Titan: max 1 per player (wrapped in transaction to prevent race condition)
     if (unitType === 'TITAN') {
       const allBases = await prisma.base.findMany({
         where: { userId: req.user.id, season: { isActive: true } },
       });
-      const titanStocks = await prisma.unitStock.findMany({
-        where: { baseId: { in: allBases.map((b) => b.id) }, type: 'TITAN' },
+      const baseIds = allBases.map((b) => b.id);
+
+      await prisma.$transaction(async (tx) => {
+        const titanStocks = await tx.unitStock.findMany({
+          where: { baseId: { in: baseIds }, type: 'TITAN' },
+        });
+        const titanQueues = await tx.buildQueue.findMany({
+          where: {
+            baseId: { in: baseIds },
+            unitType: 'TITAN',
+            completed: false,
+          },
+        });
+        const totalTitans =
+          titanStocks.reduce((s, t) => s + t.count, 0) +
+          titanQueues.reduce((s, t) => s + t.quantity, 0);
+        if (totalTitans >= 1) {
+          throw new Error('You can only have 1 Titan');
+        }
       });
-      const titanQueues = await prisma.buildQueue.findMany({
-        where: {
-          baseId: { in: allBases.map((b) => b.id) },
-          unitType: 'TITAN',
-          completed: false,
-        },
-      });
-      const totalTitans =
-        titanStocks.reduce((s, t) => s + t.count, 0) +
-        titanQueues.reduce((s, t) => s + t.quantity, 0);
-      if (totalTitans >= 1) {
-        return res.status(400).json({ error: 'You can only have 1 Titan' });
-      }
+
       if (quantity > 1) {
         return res.status(400).json({ error: 'Can only queue 1 Titan at a time' });
       }
@@ -123,6 +128,10 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
 
     res.status(201).json({ job });
   } catch (err) {
+    // Return user-facing errors from transaction throws
+    if (err.message === 'You can only have 1 Titan') {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('[warroom/queue]', err);
     res.status(500).json({ error: 'Server error' });
   }
@@ -207,7 +216,7 @@ router.post('/:baseId/attack', requireAuth, async (req, res) => {
         minSpeed = Math.min(minSpeed, getUnitStatsMap()[type].speed);
       }
     }
-    if (minSpeed === Infinity) minSpeed = 80;
+    if (minSpeed === Infinity || minSpeed <= 0) minSpeed = 80;
     const travelHours = dist / minSpeed;
     const travelMs = travelHours * 3600 * 1000;
 

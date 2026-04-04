@@ -373,6 +373,7 @@ router.post('/:id/invite', requireAuth, async (req, res) => {
       data: {
         allianceId:    alliance.id,
         invitedUserId,
+        type: 'INVITE',
         status: 'PENDING',
       },
     });

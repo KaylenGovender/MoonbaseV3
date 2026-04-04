@@ -3,9 +3,21 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../prisma/client.js';
 
 export function createSocketServer(httpServer) {
+  const ALLOWED_ORIGINS = [
+    /^https?:\/\/localhost(:\d+)?$/,
+    /\.railway\.app$/,
+    /\.up\.railway\.app$/,
+  ];
+
   const io = new Server(httpServer, {
     cors: {
-      origin: (origin, cb) => cb(null, true),
+      origin: (origin, cb) => {
+        if (!origin || ALLOWED_ORIGINS.some((p) => p.test(origin))) {
+          cb(null, true);
+        } else {
+          cb(null, false);
+        }
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
