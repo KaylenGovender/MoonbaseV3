@@ -287,7 +287,7 @@ router.post('/:id/building/:type/upgrade', requireAuth, async (req, res) => {
     // Atomic: only set upgrade if not already upgrading (prevents double-queue race)
     const rowsUpdated = await prisma.$executeRawUnsafe(
       `UPDATE "Building" SET "level" = $1, "upgradeEndsAt" = $2
-       WHERE "baseId" = $3 AND "type" = $4 AND "upgradeEndsAt" IS NULL`,
+       WHERE "baseId" = $3 AND "type" = $4::"BuildingType" AND "upgradeEndsAt" IS NULL`,
       nextLevel, upgradeEndsAt, baseId, type
     );
     if (rowsUpdated === 0) {
