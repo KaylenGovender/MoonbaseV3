@@ -6,9 +6,135 @@ function kmToWorld(km, cs) {
   return ((km + 100) / MAP_KM) * cs;
 }
 
+// Generate a moon surface texture on an offscreen canvas (called once)
+function generateMoonSurface(size) {
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+
+  // Base lunar gray
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, size, size);
+
+  // Seeded pseudo-random for consistent texture
+  function seededRand(seed) {
+    let s = seed;
+    return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+  }
+
+  const rand = seededRand(42);
+
+  // Large craters
+  for (let i = 0; i < 30; i++) {
+    const cx = rand() * size;
+    const cy = rand() * size;
+    const r = 8 + rand() * 25;
+    // Crater shadow (darker inside)
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, 'rgba(8,8,20,0.5)');
+    grad.addColorStop(0.7, 'rgba(12,12,28,0.3)');
+    grad.addColorStop(1, 'rgba(30,30,50,0.0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    // Crater rim (lighter ring)
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(45,45,70,${0.2 + rand() * 0.15})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // Small craters
+  for (let i = 0; i < 80; i++) {
+    const cx = rand() * size;
+    const cy = rand() * size;
+    const r = 2 + rand() * 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(10,10,24,${0.3 + rand() * 0.2})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(40,40,60,${0.15 + rand() * 0.1})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Dust/rocks scatter
+  for (let i = 0; i < 300; i++) {
+    const dx = rand() * size;
+    const dy = rand() * size;
+    const dr = 0.5 + rand() * 1.5;
+    const brightness = 20 + Math.floor(rand() * 25);
+    ctx.beginPath();
+    ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${brightness},${brightness},${brightness + 10},${0.15 + rand() * 0.2})`;
+    ctx.fill();
+  }
+
+  return c;
+}
+
+// Draw a hexagonal base icon
+function drawHexBase(ctx, x, y, r, fillColor, initials, isOwn, isAlly) {
+  // Glow ring
+  if (isOwn || isAlly) {
+    const glowR = r + 5;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i - Math.PI / 6;
+      const hx = x + glowR * Math.cos(angle);
+      const hy = y + glowR * Math.sin(angle);
+      i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = isOwn ? 'rgba(56,189,248,0.15)' : 'rgba(74,222,128,0.15)';
+    ctx.fill();
+  }
+
+  // Hexagon body
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    const hx = x + r * Math.cos(angle);
+    const hy = y + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  // Subtle border
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Antenna line on top
+  const topY = y - r;
+  ctx.beginPath();
+  ctx.moveTo(x, topY);
+  ctx.lineTo(x, topY - 4);
+  ctx.strokeStyle = fillColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Antenna tip dot
+  ctx.beginPath();
+  ctx.arc(x, topY - 4.5, 1, 0, Math.PI * 2);
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // Initials
+  ctx.font = 'bold 6px Inter,sans-serif';
+  ctx.fillStyle = '#0a1628';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(initials, x, y);
+}
+
 export default function CanvasMap({ bases, attacks, tradePods, playerBases, visRadius, onBaseClick, allianceBaseIds, activeBaseId, availablePlots = [], onPlotClick, disableFog = false }) {
   const canvasRef = useRef(null);
-  const fogRef    = useRef(null); // offscreen canvas for fog, reused across frames
+  const fogRef    = useRef(null);
+  const moonRef   = useRef(null); // offscreen moon surface texture
   const stateRef  = useRef({
     offsetX: 0, offsetY: 0, scale: 1,
     dragging: false,
@@ -77,21 +203,20 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Grid lines — draw across entire visible area to avoid hard world-boundary edge
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 0.5;
-    const gridStep = cs / 10;
+    // Moon surface background — tile the procedural texture
+    if (!moonRef.current) moonRef.current = generateMoonSurface(256);
+    const moonTex = moonRef.current;
     const wLeft   = -offsetX / scale;
     const wTop    = -offsetY / scale;
     const wRight  = (W - offsetX) / scale;
     const wBottom = (H - offsetY) / scale;
-    const gx0 = Math.floor(wLeft  / gridStep) * gridStep;
-    const gy0 = Math.floor(wTop   / gridStep) * gridStep;
-    for (let gx = gx0; gx <= wRight + gridStep; gx += gridStep) {
-      ctx.beginPath(); ctx.moveTo(gx, wTop  - gridStep); ctx.lineTo(gx, wBottom + gridStep); ctx.stroke();
-    }
-    for (let gy = gy0; gy <= wBottom + gridStep; gy += gridStep) {
-      ctx.beginPath(); ctx.moveTo(wLeft - gridStep, gy); ctx.lineTo(wRight + gridStep, gy); ctx.stroke();
+    const tileSize = moonTex.width;
+    const tx0 = Math.floor(wLeft / tileSize) * tileSize;
+    const ty0 = Math.floor(wTop / tileSize) * tileSize;
+    for (let tx = tx0; tx < wRight + tileSize; tx += tileSize) {
+      for (let ty = ty0; ty < wBottom + tileSize; ty += tileSize) {
+        ctx.drawImage(moonTex, tx, ty);
+      }
     }
 
     // Center crosshair
@@ -183,40 +308,16 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
       ctx.fill();
     }
 
-    // Base dots — fixed world-space size (scales proportionally with zoom)
+    // Base icons — hexagonal base compounds with initials
     for (const base of (bases ?? [])) {
       const bx = kmToWorld(base.x, cs);
       const by = kmToWorld(base.y, cs);
-      const r  = 5; // uniform size — no special admin treatment
+      const r  = 5;
       const isAlly = (allianceBaseIds ?? []).includes(base.id) || base.isAlly;
-
-      // Glow ring for own bases
-      if (base.isOwn) {
-        ctx.beginPath();
-        ctx.arc(bx, by, r + 5, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(56,189,248,0.15)';
-        ctx.fill();
-      }
-      // Glow ring for ally bases
-      if (isAlly) {
-        ctx.beginPath();
-        ctx.arc(bx, by, r + 5, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(74,222,128,0.15)';
-        ctx.fill();
-      }
-
-      ctx.beginPath();
-      ctx.arc(bx, by, r, 0, 2 * Math.PI);
-      ctx.fillStyle = base.isOwn ? '#38bdf8'
-        : isAlly     ? '#4ade80'
-        : '#94a3b8';   // admin bases look identical to enemy bases
-      ctx.fill();
-
-      ctx.font         = 'bold 6px Inter,sans-serif';
-      ctx.fillStyle    = '#0a1628';
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(base.initials, bx, by);
+      const fillColor = base.isOwn ? '#38bdf8'
+        : isAlly ? '#4ade80'
+        : '#94a3b8';
+      drawHexBase(ctx, bx, by, r, fillColor, base.initials, base.isOwn, isAlly);
     }
 
     ctx.restore();
