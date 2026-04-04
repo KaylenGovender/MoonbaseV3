@@ -74,6 +74,18 @@ export async function initGameConfig() {
         }
       }
       console.log('[gameConfig] Loaded config overrides from DB');
+
+      // v3.0.4 migration: force-update unit stats & helium upkeep to new balance
+      if (_config.unitStats.TITAN?.attack === 5000 || _config.unitStats.DRONE?.attack === 100) {
+        _config.unitStats   = JSON.parse(JSON.stringify(DEFAULT_UNIT_STATS));
+        _config.heliumUpkeep = { ...DEFAULT_HELIUM_UPKEEP };
+        await prisma.serverConfig.upsert({
+          where:  { key: 'game_config' },
+          update: { value: JSON.stringify(_config) },
+          create: { key: 'game_config', value: JSON.stringify(_config) },
+        });
+        console.log('[gameConfig] Migrated unit stats to v3.0.4 balance');
+      }
     }
   } catch (e) {
     console.error('[gameConfig] Failed to load config from DB, using defaults:', e.message);

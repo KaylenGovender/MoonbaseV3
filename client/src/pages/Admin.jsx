@@ -22,7 +22,7 @@ const BUILDING_ICONS = {
   WAR_ROOM: '⚔️', CONSTRUCTION_YARD: '🏭', ALLIANCE: '🤝', TRADE_POD: '🚀',
 };
 const MINE_ICONS = { OXYGEN: '💨', WATER: '💧', IRON: '⚙️', HELIUM3: '☢️' };
-const UNIT_ICONS = { MOONBUGGY: '🛺', GUNSHIP: '🚁', TANK: '🪖', HARVESTER: '🚜', DRONE: '🤖', TITAN: '🤖' };
+const UNIT_ICONS = { MOONBUGGY: '🏎️', GUNSHIP: '🚀', TANK: '🦾', HARVESTER: '🚜', DRONE: '🛸', TITAN: '👾' };
 const RES_LABELS = { oxygen: '💨 O₂', water: '💧 H₂O', iron: '⚙️ Iron', helium3: '☢️ He3' };
 
 // Bottom-sheet style inline edit modal

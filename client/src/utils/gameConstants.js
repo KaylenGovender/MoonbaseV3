@@ -1,6 +1,6 @@
 // Client-side game constants (mirrored from server config)
 
-export const APP_VERSION = 'v3.0.3';
+export const APP_VERSION = 'v3.0.4';
 
 export function siloCapacity(level) {
   return 1500 + level * 500;
@@ -52,12 +52,12 @@ export const RESOURCE_META = {
 };
 
 export const UNIT_META = {
-  MOONBUGGY: { icon: '🛺', label: 'Moonbuggy', attack: 25,   defense: 40,   speed: 80,  carry: 30,   buildTime: 30,   cost: { oxygen: 200, water: 100, iron: 150,  helium3: 180 } },
-  GUNSHIP:   { icon: '🚁', label: 'Gunship',   attack: 120,  defense: 40,   speed: 150, carry: 80,   buildTime: 120,  cost: { oxygen: 350, water: 300, iron: 230,  helium3: 200 } },
-  TANK:      { icon: '🪖', label: 'Tank',      attack: 250,  defense: 250,  speed: 120, carry: 120,  buildTime: 300,  cost: { oxygen: 450, water: 400, iron: 500,  helium3: 300 } },
+  MOONBUGGY: { icon: '🏎️', label: 'Moonbuggy', attack: 25,   defense: 40,   speed: 80,  carry: 30,   buildTime: 30,   cost: { oxygen: 200, water: 100, iron: 150,  helium3: 180 } },
+  GUNSHIP:   { icon: '🚀', label: 'Gunship',   attack: 120,  defense: 40,   speed: 150, carry: 80,   buildTime: 120,  cost: { oxygen: 350, water: 300, iron: 230,  helium3: 200 } },
+  TANK:      { icon: '🦾', label: 'Tank',      attack: 250,  defense: 250,  speed: 120, carry: 120,  buildTime: 300,  cost: { oxygen: 450, water: 400, iron: 500,  helium3: 300 } },
   HARVESTER: { icon: '🚜', label: 'Harvester', attack: 10,   defense: 10,   speed: 250, carry: 300,  buildTime: 180,  cost: { oxygen: 200, water: 250, iron: 350,  helium3: 400 } },
   DRONE:     { icon: '🛸', label: 'Drone',     attack: 60,   defense: 15,   speed: 120, carry: 10,   buildTime: 12,   cost: { oxygen: 80,   water: 60,  iron: 100,  helium3: 60 } },
-  TITAN:     { icon: '🤖', label: 'Titan',     attack: 3000, defense: 3000, speed: 60,  carry: 800,  buildTime: 3600, cost: { oxygen: 10000,water: 8000,iron: 12000,helium3: 8000 } },
+  TITAN:     { icon: '👾', label: 'Titan',     attack: 3000, defense: 3000, speed: 60,  carry: 800,  buildTime: 3600, cost: { oxygen: 10000,water: 8000,iron: 12000,helium3: 8000 } },
 };
 
 export const HELIUM_UPKEEP = {
