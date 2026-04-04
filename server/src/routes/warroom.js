@@ -219,6 +219,23 @@ router.post('/:baseId/attack', requireAuth, async (req, res) => {
       },
     });
 
+    // Notify via WebSocket so map shows attack in-flight and defender sees incoming warning
+    const socketIo = req.app.get('io');
+    if (socketIo) {
+      const seasonId = attackerBase.seasonId;
+      socketIo.to(`map:season:${seasonId}`).emit('map:attack_launched', {
+        attackId: attack.id,
+        attackerBaseId: baseId,
+        defenderBaseId: targetBaseId,
+        launchTime: now,
+        arrivalTime,
+      });
+      socketIo.to(`base:${targetBaseId}`).emit('attack:incoming', {
+        attackId: attack.id,
+        arrivalTime,
+      });
+    }
+
     res.status(201).json({ attack, eta: arrivalTime });
   } catch (err) {
     console.error('[attack launch]', err);

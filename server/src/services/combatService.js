@@ -156,12 +156,12 @@ export async function resolveBattle(attack) {
 
     // Attacker medals
     await upsertMedal(attackerBase.userId, season.id, week, {
-      attackerPoints: attackerWon ? attackerPointsChange : 0,
+      attackerPoints: attackerPointsChange,
       raiderPoints:   Math.floor(totalLooted / 50),
     });
-    // Defender medals — defender points for winning, no raider penalty
+    // Defender medals
     await upsertMedal(defenderBase.userId, season.id, week, {
-      defenderPoints: !attackerWon ? defenderPointsChange : 0,
+      defenderPoints: defenderPointsChange,
       raiderPoints:   0,
     });
   }

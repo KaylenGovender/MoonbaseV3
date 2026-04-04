@@ -28,9 +28,21 @@ app.use(
   }),
 );
 
+const ALLOWED_ORIGINS = [
+  /^https?:\/\/localhost(:\d+)?$/,
+  /\.railway\.app$/,
+  /\.up\.railway\.app$/,
+];
+
 app.use(
   cors({
-    origin: (origin, cb) => cb(null, true),
+    origin: (origin, cb) => {
+      if (!origin || ALLOWED_ORIGINS.some((p) => p.test(origin))) {
+        cb(null, true);
+      } else {
+        cb(null, false);
+      }
+    },
     credentials: true,
   }),
 );

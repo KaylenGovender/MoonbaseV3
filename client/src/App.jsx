@@ -41,7 +41,7 @@ function AuthLayout({ children }) {
   useEffect(() => {
     async function checkVersion() {
       try {
-        const res = await fetch('/api/version');
+        const res = await fetch('/api/version', { cache: 'no-store' });
         const data = await res.json();
         if (data.version && data.version !== APP_VERSION) {
           if (!sessionStorage.getItem(VERSION_CHECK_KEY)) {

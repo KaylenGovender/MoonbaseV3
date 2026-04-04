@@ -11,7 +11,9 @@ router.get('/list/all', requireAuth, async (req, res) => {
     if (!season) return res.json({ alliances: [] });
 
     // Check if user is already in an alliance
-    const myMembership = await prisma.allianceMember.findFirst({ where: { userId: req.user.id } });
+    const myMembership = await prisma.allianceMember.findFirst({
+      where: { userId: req.user.id, alliance: { seasonId: season.id } },
+    });
 
     const alliances = await prisma.alliance.findMany({
       where: { seasonId: season.id },
@@ -53,7 +55,9 @@ router.post('/:id/request', requireAuth, async (req, res) => {
     });
     if (!alliance) return res.status(404).json({ error: 'Alliance not found' });
 
-    const existing = await prisma.allianceMember.findFirst({ where: { userId: req.user.id } });
+    const existing = await prisma.allianceMember.findFirst({
+      where: { userId: req.user.id, alliance: { seasonId: alliance.seasonId } },
+    });
     if (existing) return res.status(400).json({ error: 'Already in an alliance' });
 
     const alreadyRequested = await prisma.allianceInvite.findFirst({
@@ -175,7 +179,7 @@ router.post('/create', requireAuth, async (req, res) => {
 
     // Check not already in an alliance
     const existing = await prisma.allianceMember.findFirst({
-      where: { userId: req.user.id },
+      where: { userId: req.user.id, alliance: { seasonId: season.id } },
     });
     if (existing) return res.status(400).json({ error: 'Already in an alliance' });
 
@@ -210,8 +214,9 @@ router.post('/create', requireAuth, async (req, res) => {
 // GET /api/alliance/my/info — current player's alliance (MUST be before GET /:id)
 router.get('/my/info', requireAuth, async (req, res) => {
   try {
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
     const membership = await prisma.allianceMember.findFirst({
-      where: { userId: req.user.id },
+      where: { userId: req.user.id, ...(season ? { alliance: { seasonId: season.id } } : {}) },
       include: {
         alliance: {
           include: {
@@ -359,7 +364,7 @@ router.post('/:id/invite', requireAuth, async (req, res) => {
     }
 
     const alreadyMember = await prisma.allianceMember.findFirst({
-      where: { userId: invitedUserId },
+      where: { userId: invitedUserId, alliance: { seasonId: season?.id } },
     });
     if (alreadyMember) {
       return res.status(400).json({ error: 'User is already in an alliance' });
