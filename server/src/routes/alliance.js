@@ -229,7 +229,6 @@ router.get('/my/info', requireAuth, async (req, res) => {
     });
     if (!membership) return res.json({ alliance: null });
 
-    const season = await prisma.season.findFirst({ where: { isActive: true } });
     const memberUserIds = membership.alliance.members.map((m) => m.userId);
     const memberBases = season
       ? await prisma.base.findMany({
