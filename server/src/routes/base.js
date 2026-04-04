@@ -1,17 +1,172 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
-import { deductResources, getResourceRates } from '../services/resourceEngine.js';
-import {
-  BUILDING_CONFIG,
-  MINE_CONFIG,
-  MINE_SLOTS,
-  constructionYardReduction,
-  mineRate,
-  siloCapacity,
-} from '../config/gameConfig.js';
+import { deductResources, addResources, getResourceRates } from '../services/resourceEngine.js';
+import { MINE_SLOTS, ALL_BUILDING_TYPES, ALL_UNIT_TYPES, MAP_BOUNDS } from '../config/gameConfig.js';
+import { getBuildingLevelConfig, getMineLevelConfig, getSiloCapacity, constructionYardReduction } from '../services/gameConfigService.js';
+import { placeNewBase } from '../services/placementService.js';
 
 const router = Router();
+
+// ── Second Base System ───────────────────────────────────────────────────────
+// These MUST be defined before /:id to avoid route collision
+
+// GET /api/base/available-plots — 5 candidate spots for a new base
+router.get('/available-plots', requireAuth, async (req, res) => {
+  try {
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return res.status(503).json({ error: 'No active season' });
+
+    const plots = [];
+    for (let i = 0; i < 5; i++) {
+      const pos = await placeNewBase(season.id);
+      plots.push({ id: `plot_${i}`, ...pos });
+    }
+    res.json({ plots });
+  } catch (err) {
+    console.error('[available-plots]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/base/claim — claim a new base at given coordinates
+router.post('/claim', requireAuth, async (req, res) => {
+  try {
+    const { x, y } = req.body;
+    if (x === undefined || y === undefined) {
+      return res.status(400).json({ error: 'x and y required' });
+    }
+
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return res.status(503).json({ error: 'No active season' });
+
+    const myBases = await prisma.base.findMany({
+      where: { userId: req.user.id, seasonId: season.id },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Additional bases (2nd, 3rd, …) require Research Lab L20 on most recent base.
+    // First base in a season has no requirement.
+    if (myBases.length > 0) {
+      const requiredBase = myBases[myBases.length - 1];
+      const lab = await prisma.building.findUnique({
+        where: { baseId_type: { baseId: requiredBase.id, type: 'RESEARCH_LAB' } },
+      });
+      if (!lab || lab.level < 20) {
+        return res.status(400).json({ error: 'Research Lab must be Level 20 on your latest base to claim a new one' });
+      }
+    }
+
+    const { min, max } = MAP_BOUNDS;
+    const cx = parseFloat(x), cy = parseFloat(y);
+    if (cx < min || cx > max || cy < min || cy > max) {
+      return res.status(400).json({ error: 'Coordinates out of map bounds' });
+    }
+
+    const allBases = await prisma.base.findMany({ where: { seasonId: season.id } });
+    const tooClose = allBases.some((b) => {
+      const dx = b.x - cx, dy = b.y - cy;
+      return Math.sqrt(dx * dx + dy * dy) < 2;
+    });
+    if (tooClose) return res.status(400).json({ error: 'Too close to another base' });
+
+    const baseNumber = myBases.length + 1;
+    const newBase = await prisma.base.create({
+      data: {
+        userId:   req.user.id,
+        seasonId: season.id,
+        name:     `${req.user.username}'s Base${baseNumber > 1 ? ` ${baseNumber}` : ''}`,
+        x:        cx,
+        y:        cy,
+        isMain:   myBases.length === 0,
+      },
+    });
+
+    for (const type of ALL_BUILDING_TYPES) {
+      await prisma.building.create({ data: { baseId: newBase.id, type, level: 1 } });
+    }
+    await prisma.resourceState.create({
+      data: { baseId: newBase.id, oxygen: 200, water: 200, iron: 200, helium3: 50 },
+    });
+    for (const [resourceType, slotCount] of Object.entries(MINE_SLOTS)) {
+      for (let slot = 1; slot <= slotCount; slot++) {
+        await prisma.mine.create({ data: { baseId: newBase.id, resourceType, slot, level: 1 } });
+      }
+    }
+    for (const type of ALL_UNIT_TYPES) {
+      await prisma.unitStock.create({ data: { baseId: newBase.id, type, count: 0 } });
+    }
+
+    res.status(201).json({ base: { id: newBase.id, name: newBase.name, x: newBase.x, y: newBase.y } });
+  } catch (err) {
+    console.error('[base/claim]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/base/:id/transfer — instant transfer of resources and/or units between own bases
+router.post('/:id/transfer', requireAuth, async (req, res) => {
+  try {
+    const { id: fromBaseId } = req.params;
+    const { toBaseId, resources = {}, units = {} } = req.body;
+
+    if (!toBaseId) return res.status(400).json({ error: 'toBaseId required' });
+    if (fromBaseId === toBaseId) return res.status(400).json({ error: 'Cannot transfer to the same base' });
+
+    const [fromBase, toBase] = await Promise.all([
+      prisma.base.findUnique({ where: { id: fromBaseId } }),
+      prisma.base.findUnique({ where: { id: toBaseId } }),
+    ]);
+
+    if (!fromBase || fromBase.userId !== req.user.id)
+      return res.status(403).json({ error: 'Forbidden' });
+    if (!toBase || toBase.userId !== req.user.id)
+      return res.status(403).json({ error: 'You can only transfer to your own bases' });
+
+    // ── Resources ──────────────────────────────────────────────────────────────
+    const resAmounts = {
+      oxygen:  Math.max(0, Math.floor(resources.oxygen  || 0)),
+      water:   Math.max(0, Math.floor(resources.water   || 0)),
+      iron:    Math.max(0, Math.floor(resources.iron    || 0)),
+      helium3: Math.max(0, Math.floor(resources.helium3 || 0)),
+    };
+    const totalRes = Object.values(resAmounts).reduce((a, b) => a + b, 0);
+
+    if (totalRes > 0) {
+      const ok = await deductResources(fromBaseId, resAmounts);
+      if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
+
+      await addResources(toBaseId, resAmounts);
+    }
+
+    // ── Units ──────────────────────────────────────────────────────────────────
+    const unitEntries = Object.entries(units).filter(([, qty]) => Math.floor(qty) > 0);
+
+    for (const [type, qty] of unitEntries) {
+      const amount = Math.floor(qty);
+      const fromStock = await prisma.unitStock.findUnique({
+        where: { baseId_type: { baseId: fromBaseId, type } },
+      });
+      if (!fromStock || fromStock.count < amount) {
+        return res.status(400).json({ error: `Not enough ${type} to transfer` });
+      }
+      await prisma.unitStock.update({
+        where: { baseId_type: { baseId: fromBaseId, type } },
+        data: { count: { decrement: amount } },
+      });
+      await prisma.unitStock.upsert({
+        where: { baseId_type: { baseId: toBaseId, type } },
+        create: { baseId: toBaseId, type, count: amount },
+        update: { count: { increment: amount } },
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[base/transfer]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // GET /api/base/:id — full base overview
 router.get('/:id', requireAuth, async (req, res) => {
@@ -19,6 +174,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     const base = await prisma.base.findUnique({
       where: { id: req.params.id },
       include: {
+        season: { select: { id: true, name: true } },
         buildings: true,
         resourceState: true,
         mines: true,
@@ -96,23 +252,16 @@ router.post('/:id/building/:type/upgrade', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Already upgrading this building' });
     }
 
-    // Check if any other building is already upgrading
-    const inProgress = await prisma.building.findFirst({
-      where: { baseId, upgradeEndsAt: { not: null } },
-    });
-    if (inProgress) {
-      return res.status(400).json({ error: 'Another building is already upgrading' });
-    }
-
     const nextLevel = building.level + 1;
-    const config = BUILDING_CONFIG[type]?.[nextLevel - 1];
+    const config = getBuildingLevelConfig(type)[nextLevel - 1];
     if (!config) return res.status(400).json({ error: 'Invalid building type' });
 
-    // Apply Construction Yard reduction
+    // Apply Construction Yard reduction (use effective level — not the target during upgrade)
     const cyBuilding = await prisma.building.findUnique({
       where: { baseId_type: { baseId, type: 'CONSTRUCTION_YARD' } },
     });
-    const reduction = constructionYardReduction(cyBuilding?.level ?? 0) / 100;
+    const cyEffectiveLevel = cyBuilding?.upgradeEndsAt ? cyBuilding.level - 1 : cyBuilding?.level ?? 0;
+    const reduction = constructionYardReduction(cyEffectiveLevel) / 100;
     const timeSeconds = Math.round(config.timeSeconds * (1 - reduction));
 
     const ok = await deductResources(baseId, {
@@ -123,7 +272,13 @@ router.post('/:id/building/:type/upgrade', requireAuth, async (req, res) => {
     });
     if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
 
-    const upgradeEndsAt = new Date(Date.now() + timeSeconds * 1000);
+    // Queue after the last building upgrade in progress
+    const lastQueued = await prisma.building.findFirst({
+      where: { baseId, upgradeEndsAt: { not: null } },
+      orderBy: { upgradeEndsAt: 'desc' },
+    });
+    const startAfter = lastQueued?.upgradeEndsAt ? new Date(lastQueued.upgradeEndsAt) : new Date();
+    const upgradeEndsAt = new Date(startAfter.getTime() + timeSeconds * 1000);
     const updated = await prisma.building.update({
       where: { baseId_type: { baseId, type } },
       data: { level: nextLevel, upgradeEndsAt },
@@ -155,13 +310,14 @@ router.post('/:id/mine/:mineId/upgrade', requireAuth, async (req, res) => {
     }
 
     const nextLevel = mine.level + 1;
-    const config = MINE_CONFIG[mine.resourceType]?.[nextLevel - 1];
+    const config = getMineLevelConfig(mine.resourceType)[nextLevel - 1];
     if (!config) return res.status(400).json({ error: 'Invalid' });
 
     const cyBuilding = await prisma.building.findUnique({
       where: { baseId_type: { baseId, type: 'CONSTRUCTION_YARD' } },
     });
-    const reduction = constructionYardReduction(cyBuilding?.level ?? 0) / 100;
+    const cyEffectiveLevel = cyBuilding?.upgradeEndsAt ? cyBuilding.level - 1 : cyBuilding?.level ?? 0;
+    const reduction = constructionYardReduction(cyEffectiveLevel) / 100;
     const timeSeconds = Math.round(config.timeSeconds * (1 - reduction));
 
     const ok = await deductResources(baseId, {
@@ -172,7 +328,13 @@ router.post('/:id/mine/:mineId/upgrade', requireAuth, async (req, res) => {
     });
     if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
 
-    const upgradeEndsAt = new Date(Date.now() + timeSeconds * 1000);
+    // Queue after the last mine upgrade in progress
+    const lastQueued = await prisma.mine.findFirst({
+      where: { baseId, upgradeEndsAt: { not: null } },
+      orderBy: { upgradeEndsAt: 'desc' },
+    });
+    const startAfter = lastQueued?.upgradeEndsAt ? new Date(lastQueued.upgradeEndsAt) : new Date();
+    const upgradeEndsAt = new Date(startAfter.getTime() + timeSeconds * 1000);
     const updated = await prisma.mine.update({
       where: { id: mineId },
       data: { level: nextLevel, upgradeEndsAt },
@@ -199,7 +361,7 @@ router.get('/:id/resources', requireAuth, async (req, res) => {
       where: { baseId_type: { baseId, type: 'SILO' } },
     });
     const rates = await getResourceRates(baseId);
-    const cap = siloCapacity(siloBuilding?.level ?? 0);
+    const cap = getSiloCapacity(siloBuilding?.level ?? 0);
     res.json({ resourceState, rates, capacity: cap, mines });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
