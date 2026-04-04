@@ -11,6 +11,7 @@ export const useAuthStore = create(
       bases:  [],
       activeBaseId: null,
       unitSpeeds: {}, // populated by loadGameConfig on startup
+      gameSpecial: null, // silo/bunker/radar config from server
 
       setAuth: ({ token, user, bases }) => {
         set({ token, user, bases, activeBaseId: bases?.[0]?.id ?? null });
@@ -37,7 +38,7 @@ export const useAuthStore = create(
           const speeds = Object.fromEntries(
             Object.entries(stats).map(([k, v]) => [k, v.speed ?? UNIT_META[k]?.speed ?? 10])
           );
-          set({ unitSpeeds: speeds });
+          set({ unitSpeeds: speeds, gameSpecial: cfg?.special ?? null });
         } catch {
           // Fall back to hardcoded defaults on failure
           const speeds = Object.fromEntries(

@@ -726,7 +726,7 @@ router.get('/alliances', requireAuth, requireAdmin, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ rows });
+    res.json({ alliances: rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

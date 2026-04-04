@@ -10,9 +10,10 @@ import ActiveEvents from '../components/ActiveEvents.jsx';
 import BattleReports from '../components/BattleReports.jsx';
 import ClaimBaseModal from '../components/ClaimBaseModal.jsx';
 import TransferModal from '../components/TransferModal.jsx';
-import { siloCapacity, APP_VERSION } from '../utils/gameConstants.js';
+import { APP_VERSION } from '../utils/gameConstants.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
+import { siloCapacity as defaultSiloCapacity } from '../utils/gameConstants.js';
 
 export default function Base() {
   const navigate          = useNavigate();
@@ -22,8 +23,15 @@ export default function Base() {
   const refreshBases      = useAuthStore((s) => s.refreshBases);
   const user              = useAuthStore((s) => s.user);
   const logout            = useAuthStore((s) => s.logout);
+  const gameSpecial       = useAuthStore((s) => s.gameSpecial);
   const { base, resources, rates, recentAttacks, setBase, setLoading, setError } = useBaseStore();
   const { socket }        = useSocketStore();
+
+  // Use live config for silo capacity, fallback to hardcoded
+  const siloCapacity = (level) => {
+    if (gameSpecial) return (gameSpecial.siloBase ?? 1500) + level * (gameSpecial.siloPerLevel ?? 500);
+    return defaultSiloCapacity(level);
+  };
   const [myRank,       setMyRank]       = useState(null);
   const [showBases,    setShowBases]    = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);

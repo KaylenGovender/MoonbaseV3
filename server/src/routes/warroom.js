@@ -97,23 +97,29 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
     const reduction = constructionYardReduction(cyEffectiveLevel) / 100;
     const timePerUnit = Math.round(stats.buildTime * (1 - reduction));
 
-    // Queue after last pending job
+    // Queue after last pending job — create individual entries per unit for incremental delivery
     const lastJob = await prisma.buildQueue.findFirst({
       where: { baseId, completed: false },
       orderBy: { completesAt: 'desc' },
     });
-    const startAfter = lastJob ? new Date(lastJob.completesAt) : new Date();
-    const completesAt = new Date(startAfter.getTime() + timePerUnit * quantity * 1000);
+    const startAfter = lastJob ? new Date(lastJob.completesAt).getTime() : Date.now();
 
-    const job = await prisma.buildQueue.create({
-      data: {
+    const jobs = [];
+    for (let i = 0; i < quantity; i++) {
+      const unitCompletesAt = new Date(startAfter + timePerUnit * (i + 1) * 1000);
+      jobs.push({
         baseId,
         unitType,
-        quantity,
-        startedAt:   startAfter,
-        completesAt,
-      },
-    });
+        quantity: 1,
+        startedAt: new Date(startAfter + timePerUnit * i * 1000),
+        completesAt: unitCompletesAt,
+      });
+    }
+    await prisma.buildQueue.createMany({ data: jobs });
+
+    // Return a summary job for the client
+    const lastEntry = jobs[jobs.length - 1];
+    const job = { unitType, quantity, startedAt: new Date(startAfter), completesAt: lastEntry.completesAt };
 
     res.status(201).json({ job });
   } catch (err) {

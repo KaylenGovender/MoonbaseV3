@@ -19,6 +19,16 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
       .finally(() => setLoading(false));
   }, [userId]);
 
+  if (showChat) {
+    return (
+      <DMChat
+        targetUserId={userId}
+        targetUsername={username}
+        onClose={() => setShowChat(false)}
+      />
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
       <div
@@ -92,14 +102,6 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
           )}
         </div>
       </div>
-
-      {showChat && (
-        <DMChat
-          targetUserId={userId}
-          targetUsername={username}
-          onClose={() => setShowChat(false)}
-        />
-      )}
     </div>
   );
 }
