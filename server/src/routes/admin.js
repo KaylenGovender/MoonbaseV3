@@ -685,8 +685,19 @@ router.get('/attacks', requireAuth, requireAdmin, async (req, res) => {
 // ── Battle Reports (admin) ─────────────────────────────────────────────────────
 router.get('/battle-reports', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const limit = 20;
+    const { username } = req.query;
+    const limit = 50;
+    const where = {};
+    if (username) {
+      where.attack = {
+        OR: [
+          { attackerBase: { user: { username: { contains: username, mode: 'insensitive' } } } },
+          { defenderBase: { user: { username: { contains: username, mode: 'insensitive' } } } },
+        ],
+      };
+    }
     const rows = await prisma.battleReport.findMany({
+      where,
       include: {
         attack: {
           select: {
@@ -824,6 +835,20 @@ router.post('/players/:userId/reset-bases', requireAuth, requireAdmin, async (re
       await prisma.base.deleteMany({ where: { id: { in: baseIds } } });
     }
     res.json({ ok: true, basesDeleted: baseIds.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin Password Reset ───────────────────────────────────────────────────────
+router.post('/reset-password', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'User ID and password (min 6 chars) required' });
+    }
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

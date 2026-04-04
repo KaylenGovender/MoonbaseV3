@@ -83,6 +83,11 @@ export default function Admin() {
   const [resetMsg, setResetMsg]         = useState('');
   const [protectionEnabled, setProtectionEnabled] = useState(true);
   const [protectionMsg, setProtectionMsg] = useState('');
+  const [battleFilter, setBattleFilter] = useState('');
+
+  // ── Player password reset ──
+  const [resetPwInput, setResetPwInput] = useState('');
+  const [resetPwMsg, setResetPwMsg]     = useState('');
 
   // ── Week configs (per season) ──
   const [weekConfigs, setWeekConfigs]     = useState({});
@@ -121,11 +126,16 @@ export default function Admin() {
       const [dash, attacks, reports] = await Promise.all([
         api.get('/admin/dashboard'),
         api.get('/admin/attacks?active=true').catch(() => ({ attacks: [] })),
-        api.get('/admin/battle-reports').catch(() => ({ reports: [] })),
+        api.get('/admin/battle-reports').catch(() => ({ rows: [] })),
       ]);
       setDashboardData(dash);
       setActiveAttacks(attacks.attacks ?? []);
-      setBattleReports(reports.reports ?? []);
+      const mapped = (reports.rows ?? []).map((r) => ({
+        ...r,
+        attackerName: r.attack?.attackerBase?.user?.username ?? '?',
+        defenderName: r.attack?.defenderBase?.user?.username ?? '?',
+      }));
+      setBattleReports(mapped);
     } catch {}
     setLoadingDashboard(false);
   }
@@ -170,6 +180,8 @@ export default function Admin() {
     setLoadingPlayer(true);
     setSelectedPlayer(null);
     setError('');
+    setResetPwInput('');
+    setResetPwMsg('');
     try {
       const data = await api.get(`/admin/players/${u.id}`);
       setSelectedPlayer(data);
@@ -282,7 +294,32 @@ export default function Admin() {
   async function loadProtection() {
     try { const res = await api.get('/admin/config/protection'); setProtectionEnabled(res.enabled); } catch {}
   }
-  useEffect(() => { if (tab === 'server') { loadAllUsers(); loadProtection(); } }, [tab]);
+  useEffect(() => { if (tab === 'server') { loadAllUsers(); loadProtection(); loadBattleReports(); } }, [tab]);
+
+  async function loadBattleReports(username) {
+    try {
+      const res = await api.get('/admin/battle-reports' + (username ? '?username=' + encodeURIComponent(username) : ''));
+      const mapped = (res.rows ?? []).map((r) => ({
+        ...r,
+        attackerName: r.attack?.attackerBase?.user?.username ?? '?',
+        defenderName: r.attack?.defenderBase?.user?.username ?? '?',
+      }));
+      setBattleReports(mapped);
+    } catch { setBattleReports([]); }
+  }
+
+  async function resetPlayerPassword() {
+    if (!selectedPlayer || !resetPwInput || resetPwInput.length < 6) {
+      setResetPwMsg('❌ Password must be at least 6 characters');
+      return;
+    }
+    try {
+      await api.post('/admin/reset-password', { userId: selectedPlayer.user.id, newPassword: resetPwInput });
+      setResetPwMsg('✅ Password reset successfully');
+      setResetPwInput('');
+      setTimeout(() => setResetPwMsg(''), 3000);
+    } catch (e) { setResetPwMsg(`❌ ${e.message}`); }
+  }
   useEffect(() => {
     if (tab === 'config') {
       api.get('/admin/game-config').then(setGameConfig).catch(() => {});
@@ -498,10 +535,10 @@ export default function Admin() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-space-600/50 overflow-x-auto">
+      <div className="flex gap-1 border-b border-space-600/50 overflow-x-auto px-2">
         {[['dashboard','🏠'],['players','👥'],['alliances','🤝'],['seasons','📅'],['server','🖥️'],['config','⚙️']].map(([key,icon]) => (
           <button key={key} onClick={() => switchTab(key)}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${tab === key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}>
+            className={`flex-none px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${tab === key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}>
             {icon} {key.charAt(0).toUpperCase() + key.slice(1)}
           </button>
         ))}
@@ -527,8 +564,9 @@ export default function Admin() {
                   ['👥', 'Total Players',       dashboardData.totalPlayers],
                   ['🏠', 'Total Bases',          dashboardData.totalBases],
                   ['⚔️', 'Active Attacks',       dashboardData.activeAttacks ?? activeAttacks.length],
-                  ['📝', 'Recent Registrations', dashboardData.recentRegistrations],
+                  ['🏆', 'Recent Battles',       battleReports.length],
                   ['🤝', 'Total Alliances',      dashboardData.totalAlliances],
+                  ['📝', 'Recent Registrations', dashboardData.recentRegistrations],
                 ].map(([icon, label, val]) => (
                   <div key={label} className="card flex items-center gap-3">
                     <span className="text-2xl">{icon}</span>
@@ -553,56 +591,6 @@ export default function Admin() {
                   )}
                 </div>
               )}
-
-              {/* Active attacks */}
-              <div className="card space-y-2">
-                <p className="section-title">⚔️ Active Attacks</p>
-                {activeAttacks.length === 0 ? (
-                  <div className="text-xs text-slate-600 text-center py-2">No active attacks</div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {activeAttacks.map((a, i) => (
-                      <div key={a.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2 flex items-center justify-between">
-                        <div>
-                          <div className="text-xs text-white">
-                            <span className="text-red-400">{a.attackerName ?? a.attacker ?? '?'}</span>
-                            {' → '}
-                            <span className="text-blue-400">{a.defenderName ?? a.defender ?? '?'}</span>
-                          </div>
-                          {a.army && <div className="text-[10px] text-slate-500 mt-0.5">{typeof a.army === 'string' ? a.army : Object.entries(a.army).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')}</div>}
-                        </div>
-                        {a.eta && <span className="text-[10px] text-yellow-400 font-mono">{a.eta}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent battles */}
-              <div className="card space-y-2">
-                <p className="section-title">🏆 Recent Battles</p>
-                {battleReports.length === 0 ? (
-                  <div className="text-xs text-slate-600 text-center py-2">No recent battles</div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {battleReports.slice(0, 10).map((r, i) => (
-                      <div key={r.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-white">
-                            <span className="text-red-400">{r.attackerName ?? r.attacker ?? '?'}</span>
-                            {' vs '}
-                            <span className="text-blue-400">{r.defenderName ?? r.defender ?? '?'}</span>
-                          </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.winner === 'attacker' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}`}>
-                            {r.winner ?? r.outcome ?? '?'}
-                          </span>
-                        </div>
-                        {r.createdAt && <div className="text-[10px] text-slate-600 mt-0.5">{new Date(r.createdAt).toLocaleString()}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </>
           ) : (
             <div className="text-center py-10 text-slate-600 text-sm">Failed to load dashboard</div>
@@ -695,6 +683,22 @@ export default function Admin() {
                     🗑️ Reset Bases
                   </button>
                 </div>
+              </div>
+
+              {/* Password Reset */}
+              <div className="card space-y-2">
+                <p className="section-title">🔑 Reset Password</p>
+                <div className="flex gap-2">
+                  <input
+                    className="input flex-1 text-xs"
+                    type="password"
+                    placeholder="New password (min 6 chars)…"
+                    value={resetPwInput}
+                    onChange={(e) => setResetPwInput(e.target.value)}
+                  />
+                  <button onClick={resetPlayerPassword} className="btn-primary text-xs px-3">Reset</button>
+                </div>
+                {resetPwMsg && <div className={`text-xs ${resetPwMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</div>}
               </div>
 
               {/* Medals summary */}
@@ -1156,6 +1160,41 @@ export default function Admin() {
               </div>
             )}
             {resetMsg && <div className={`text-xs text-center ${resetMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetMsg}</div>}
+          </div>
+
+          {/* Battle reports with filter */}
+          <div className="card space-y-3">
+            <p className="section-title">🏆 Battle Reports</p>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 text-xs"
+                placeholder="Filter by username…"
+                value={battleFilter}
+                onChange={(e) => setBattleFilter(e.target.value)}
+              />
+              <button onClick={() => loadBattleReports(battleFilter)} className="btn-primary text-xs px-3">Search</button>
+            </div>
+            {battleReports.length === 0 ? (
+              <div className="text-xs text-slate-600 text-center py-2">No battle reports</div>
+            ) : (
+              <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+                {battleReports.map((r, i) => (
+                  <div key={r.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-white">
+                        <span className="text-red-400">{r.attackerName ?? r.attacker ?? '?'}</span>
+                        {' vs '}
+                        <span className="text-blue-400">{r.defenderName ?? r.defender ?? '?'}</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.winner === 'attacker' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}`}>
+                        {r.winner ?? r.outcome ?? '?'}
+                      </span>
+                    </div>
+                    {r.createdAt && <div className="text-[10px] text-slate-600 mt-0.5">{new Date(r.createdAt).toLocaleString()}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
