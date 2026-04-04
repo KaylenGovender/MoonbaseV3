@@ -46,6 +46,25 @@ router.get('/dm/:userId', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/chat/search?q=username — search players by username
+router.get('/search', requireAuth, async (req, res) => {
+  try {
+    const q = (req.query.q ?? '').trim();
+    if (q.length < 2) return res.json({ users: [] });
+    const users = await prisma.user.findMany({
+      where: {
+        username: { contains: q, mode: 'insensitive' },
+        id: { not: req.user.id }, // exclude self
+      },
+      select: { id: true, username: true },
+      take: 10,
+    });
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/chat/conversations — list all DM conversations for current user
 router.get('/conversations', requireAuth, async (req, res) => {
   try {

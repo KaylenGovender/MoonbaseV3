@@ -9,6 +9,7 @@ const MAIN_TABS = [
   { to: '/map',         label: 'Map',     icon: '🧭' },
   { to: '/warroom',     label: 'Units',   icon: '⚔️' },
   { to: '/alliance',    label: 'Alliance',icon: '🤝' },
+  { to: '/chat',        label: 'Chat',    icon: '💬' },
   { to: '/leaderboard', label: 'Ranks',   icon: '🏆' },
 ];
 
@@ -19,6 +20,8 @@ export default function NavBar() {
   const user         = useAuthStore((s) => s.user);
   const allianceNotif = useSocketStore((s) => s.allianceNotif);
   const clearAllianceNotif = useSocketStore((s) => s.clearAllianceNotif);
+  const chatNotif = useSocketStore((s) => s.chatNotif);
+  const clearChatNotif = useSocketStore((s) => s.clearChatNotif);
   const location = useLocation();
   const [showBases, setShowBases] = useState(false);
   const navigate = useNavigate();
@@ -28,7 +31,10 @@ export default function NavBar() {
     if (location.pathname.startsWith('/alliance') && allianceNotif) {
       clearAllianceNotif();
     }
-  }, [location.pathname, allianceNotif]);
+    if (location.pathname.startsWith('/chat') && chatNotif) {
+      clearChatNotif();
+    }
+  }, [location.pathname, allianceNotif, chatNotif]);
 
   // Red badge on Map tab when there is an incoming attack
   const attacksReceived = useBaseStore((s) => s.base?.attacksReceived ?? []);
@@ -59,6 +65,9 @@ export default function NavBar() {
                   )}
                   {tab.to === '/alliance' && allianceNotif && (
                     <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full border border-space-800 animate-pulse" />
+                  )}
+                  {tab.to === '/chat' && chatNotif && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-space-800 animate-pulse" />
                   )}
                   <span className="font-medium">{tab.label}</span>
                 </div>

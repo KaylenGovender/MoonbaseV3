@@ -10,9 +10,11 @@ function isActiveBase(baseId) {
 export const useSocketStore = create((set, get) => ({
   socket:    null,
   connected: false,
-  allianceNotif: false, // true when unread alliance chat/request/invite
+  allianceNotif: false, // unread alliance chat/request/invite
+  chatNotif: false,     // unread DM messages
 
   clearAllianceNotif: () => set({ allianceNotif: false }),
+  clearChatNotif:     () => set({ chatNotif: false }),
 
   connect: (token) => {
     // Destroy any existing socket before creating a new one (prevents duplicates)
@@ -83,9 +85,9 @@ export const useSocketStore = create((set, get) => ({
       if (msg.allianceId && !window.location.pathname.startsWith('/alliance')) {
         set({ allianceNotif: true });
       }
-      // DM messages also trigger alliance notif (chat is accessed from leaderboard)
-      if (!msg.allianceId && msg.toUserId) {
-        set({ allianceNotif: true });
+      // DM messages trigger chat tab notification when user isn't on /chat
+      if (!msg.allianceId && msg.toUserId && !window.location.pathname.startsWith('/chat')) {
+        set({ chatNotif: true });
       }
     });
 
