@@ -7,6 +7,97 @@ import { ALL_BUILDING_TYPES, ALL_UNIT_TYPES, MINE_SLOTS } from '../config/gameCo
 
 const router = Router();
 
+/** Initialize all buildings, resources, mines and unit stocks for a newly created base.
+ *  Uses upserts so it's safe to call on partially-initialised bases. */
+async function initBase(baseId) {
+  for (const type of ALL_BUILDING_TYPES) {
+    await prisma.building.upsert({
+      where: { baseId_type: { baseId, type } },
+      update: {},
+      create: { baseId, type, level: 1 },
+    });
+  }
+  await prisma.resourceState.upsert({
+    where: { baseId },
+    update: {},
+    create: { baseId, oxygen: 1000, water: 1000, iron: 1000, helium3: 1000 },
+  });
+  for (const [resourceType, slotCount] of Object.entries(MINE_SLOTS)) {
+    for (let slot = 1; slot <= slotCount; slot++) {
+      await prisma.mine.upsert({
+        where: { baseId_resourceType_slot: { baseId, resourceType, slot } },
+        update: {},
+        create: { baseId, resourceType, slot, level: 1 },
+      });
+    }
+  }
+  for (const type of ALL_UNIT_TYPES) {
+    await prisma.unitStock.upsert({
+      where: { baseId_type: { baseId, type } },
+      update: {},
+      create: { baseId, type, count: 0 },
+    });
+  }
+}
+
+/**
+ * Auto-create a base for an existing user in the active season if they don't have one.
+ * Returns the updated bases array.
+ */
+async function ensureBaseInActiveSeason(user, bases) {
+  if (bases.length > 0) return bases;
+  const season = await prisma.season.findFirst({ where: { isActive: true } });
+  if (!season) {
+    console.log(`[auth] ensureBase: no active season for ${user.username}`);
+    return bases;
+  }
+
+  // Double-check DB (avoid race conditions)
+  const existing = await prisma.base.findFirst({
+    where: { userId: user.id, seasonId: season.id },
+    select: { id: true, name: true, isMain: true },
+  });
+  if (existing) {
+    // Repair partial initialization (base exists but missing resourceState etc.)
+    const hasResources = await prisma.resourceState.findUnique({ where: { baseId: existing.id } });
+    if (!hasResources) {
+      console.log(`[auth] Repairing partial base ${existing.id} for ${user.username}`);
+      await initBase(existing.id).catch((e) => console.error('[auth] repair base:', e.message));
+    }
+    return [existing];
+  }
+
+  let x, y;
+  try {
+    const placement = await placeNewBase(season.id);
+    x = placement.x;
+    y = placement.y;
+  } catch (e) {
+    console.error('[auth] placeNewBase failed:', e.message);
+    return bases;
+  }
+
+  try {
+    const newBase = await prisma.base.create({
+      data: {
+        userId:   user.id,
+        seasonId: season.id,
+        name:     `${user.username}'s Base`,
+        x, y,
+        isMain:  true,
+        isAdmin: user.isAdmin ?? false,
+      },
+    });
+
+    await initBase(newBase.id);
+    console.log(`[auth] Auto-created base for ${user.username} in season "${season.name}" at (${x},${y})`);
+    return [{ id: newBase.id, name: newBase.name, isMain: true }];
+  } catch (e) {
+    console.error('[auth] base create failed:', e.message);
+    return bases;
+  }
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -46,33 +137,12 @@ router.post('/register', async (req, res) => {
         userId:   user.id,
         seasonId: season.id,
         name:     `${username}'s Base`,
-        x,
-        y,
+        x, y,
         isMain: true,
       },
     });
 
-    // Initialise buildings at level 0
-    for (const type of ALL_BUILDING_TYPES) {
-      await prisma.building.create({ data: { baseId: base.id, type, level: 0 } });
-    }
-
-    // Initialise resource state
-    await prisma.resourceState.create({
-      data: { baseId: base.id, oxygen: 200, water: 200, iron: 200, helium3: 50 },
-    });
-
-    // Initialise mines at level 0
-    for (const [resourceType, slotCount] of Object.entries(MINE_SLOTS)) {
-      for (let slot = 1; slot <= slotCount; slot++) {
-        await prisma.mine.create({ data: { baseId: base.id, resourceType, slot, level: 0 } });
-      }
-    }
-
-    // Initialise unit stocks
-    for (const type of ALL_UNIT_TYPES) {
-      await prisma.unitStock.create({ data: { baseId: base.id, type, count: 0 } });
-    }
+    await initBase(base.id);
 
     const token = generateToken(user.id);
     res.status(201).json({
@@ -101,10 +171,13 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Account banned' });
     }
     const token = generateToken(user.id);
-    const bases = await prisma.base.findMany({
+    let bases = await prisma.base.findMany({
       where: { userId: user.id, season: { isActive: true } },
       select: { id: true, name: true, isMain: true },
+      orderBy: { createdAt: 'asc' },
     });
+    // Auto-create a base if user has none in the active season
+    bases = await ensureBaseInActiveSeason(user, bases);
     res.json({
       token,
       user:  { id: user.id, username: user.username, isAdmin: user.isAdmin },
@@ -128,11 +201,37 @@ router.get('/me', async (req, res) => {
       select: { id: true, username: true, email: true, isAdmin: true, isBanned: true },
     });
     if (!user) return res.status(404).json({ error: 'Not found' });
-    const bases = await prisma.base.findMany({
+    let bases = await prisma.base.findMany({
       where: { userId, season: { isActive: true } },
       select: { id: true, name: true, isMain: true, x: true, y: true },
+      orderBy: { createdAt: 'asc' },
     });
+    bases = await ensureBaseInActiveSeason(user, bases);
     res.json({ user, bases });
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// GET /api/auth/bases — refresh current user's active season bases
+router.get('/bases', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'No token' });
+  try {
+    const { default: jwt } = await import('jsonwebtoken');
+    const { userId } = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, isAdmin: true },
+    });
+    if (!dbUser) return res.status(401).json({ error: 'User not found' });
+    let bases = await prisma.base.findMany({
+      where: { userId, season: { isActive: true } },
+      select: { id: true, name: true, isMain: true, x: true, y: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    bases = await ensureBaseInActiveSeason(dbUser, bases);
+    res.json({ bases });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }

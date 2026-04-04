@@ -86,7 +86,7 @@ router.post('/claim', requireAuth, async (req, res) => {
       await prisma.building.create({ data: { baseId: newBase.id, type, level: 1 } });
     }
     await prisma.resourceState.create({
-      data: { baseId: newBase.id, oxygen: 200, water: 200, iron: 200, helium3: 50 },
+      data: { baseId: newBase.id, oxygen: 1000, water: 1000, iron: 1000, helium3: 1000 },
     });
     for (const [resourceType, slotCount] of Object.entries(MINE_SLOTS)) {
       for (let slot = 1; slot <= slotCount; slot++) {
