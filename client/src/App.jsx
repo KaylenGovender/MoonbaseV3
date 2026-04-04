@@ -14,7 +14,8 @@ import BuildingDetail from './pages/BuildingDetail.jsx';
 import Admin from './pages/Admin.jsx';
 import NavBar from './components/NavBar.jsx';
 
-const APP_VERSION = 'v3.0.1';
+import { APP_VERSION } from './utils/gameConstants.js';
+
 const VERSION_CHECK_KEY = 'versionReloaded';
 
 function RequireAuth({ children }) {

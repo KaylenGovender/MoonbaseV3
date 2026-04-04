@@ -124,8 +124,12 @@ export default function Admin() {
 
   async function refreshPlayer() {
     if (!selectedPlayer) return;
-    const data = await api.get(`/admin/players/${selectedPlayer.user.id}`);
-    setSelectedPlayer(data);
+    try {
+      const data = await api.get(`/admin/players/${selectedPlayer.user.id}`);
+      setSelectedPlayer(data);
+    } catch (e) {
+      console.error('[admin/refreshPlayer]', e.message);
+    }
   }
 
   function openEdit(label, value, onSave) {

@@ -8,6 +8,7 @@ function kmToWorld(km, cs) {
 
 export default function CanvasMap({ bases, attacks, tradePods, playerBases, visRadius, onBaseClick, allianceBaseIds, activeBaseId, availablePlots = [], onPlotClick, disableFog = false }) {
   const canvasRef = useRef(null);
+  const fogRef    = useRef(null); // offscreen canvas for fog, reused across frames
   const stateRef  = useRef({
     offsetX: 0, offsetY: 0, scale: 1,
     dragging: false,
@@ -229,7 +230,8 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
         r: (visRadius / MAP_KM) * cs * scale,
       }));
 
-      const fog = document.createElement('canvas');
+      if (!fogRef.current) fogRef.current = document.createElement('canvas');
+      const fog = fogRef.current;
       fog.width  = W;
       fog.height = H;
       const fctx = fog.getContext('2d');

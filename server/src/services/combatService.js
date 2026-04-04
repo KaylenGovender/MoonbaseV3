@@ -204,7 +204,7 @@ async function getCurrentSeasonWeekNumber(seasonId) {
     });
     if (last) return last.weekNumber;
   } catch {}
-  return getWeekNumber(new Date()); // fallback
+  return 1; // fallback: week 1 rather than ISO calendar week
 }
 
 async function upsertMedal(userId, seasonId, weekNumber, increments) {

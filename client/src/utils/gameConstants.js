@@ -1,5 +1,7 @@
 // Client-side game constants (mirrored from server config)
 
+export const APP_VERSION = 'v3.0.2';
+
 export function siloCapacity(level) {
   return 1500 + level * 500;
 }

@@ -23,7 +23,7 @@ export default function Register() {
         email:    form.email,
         password: form.password,
       });
-      setAuth({ token: data.token, user: data.user, bases: [{ id: data.baseId }] });
+      setAuth({ token: data.token, user: data.user, bases: [{ id: data.baseId, name: data.baseName ?? 'Base Alpha' }] });
       navigate('/base');
     } catch (err) {
       setError(err.message);

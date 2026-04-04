@@ -312,9 +312,11 @@ router.get('/buildings', requireAuth, requireAdmin, async (req, res) => {
 router.put('/buildings/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { level } = req.body;
+    const parsedLevel = parseInt(level);
+    if (parsedLevel < 0 || parsedLevel > 20) return res.status(400).json({ error: 'Level must be 0-20' });
     const row = await prisma.building.update({
       where: { id: req.params.id },
-      data: { ...(level !== undefined && { level: parseInt(level) }) },
+      data: { ...(level !== undefined && { level: parsedLevel }) },
     });
     await recalcPopulationPoints(row.baseId);
     res.json({ row });
@@ -336,9 +338,11 @@ router.get('/mines', requireAuth, requireAdmin, async (req, res) => {
 router.put('/mines/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { level } = req.body;
+    const parsedLevel = parseInt(level);
+    if (parsedLevel < 0 || parsedLevel > 20) return res.status(400).json({ error: 'Level must be 0-20' });
     const row = await prisma.mine.update({
       where: { id: req.params.id },
-      data: { ...(level !== undefined && { level: parseInt(level) }) },
+      data: { ...(level !== undefined && { level: parsedLevel }) },
     });
     await recalcPopulationPoints(row.baseId);
     res.json({ row });

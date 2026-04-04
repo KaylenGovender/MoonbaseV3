@@ -70,17 +70,7 @@ export async function initGameConfig() {
       // Deep-merge: only override sections that are present in DB
       for (const section of Object.keys(saved)) {
         if (_config[section] !== undefined) {
-          _config[section] = { ..._config[section], ...saved[section] };
-          // For unitStats, also deep-merge the cost object
-          if (section === 'unitStats') {
-            for (const unit of Object.keys(saved.unitStats)) {
-              _config.unitStats[unit] = {
-                ..._config.unitStats[unit],
-                ...saved.unitStats[unit],
-                cost: { ...(_config.unitStats[unit]?.cost ?? {}), ...(saved.unitStats[unit]?.cost ?? {}) },
-              };
-            }
-          }
+          deepMergeSection(section, saved[section]);
         }
       }
       console.log('[gameConfig] Loaded config overrides from DB');
@@ -92,19 +82,30 @@ export async function initGameConfig() {
 
 export function getGameConfig() { return _config; }
 
-export async function updateGameConfigSection(section, data) {
-  if (!(section in _config)) throw new Error(`Unknown config section: ${section}`);
-  if (section === 'unitStats') {
-    for (const unit of Object.keys(data)) {
-      _config.unitStats[unit] = {
-        ..._config.unitStats[unit],
-        ...data[unit],
-        cost: { ...(_config.unitStats[unit]?.cost ?? {}), ...(data[unit]?.cost ?? {}) },
-      };
+// Nested sections that need deep merge (each sub-key is a type with its own properties)
+const NESTED_SECTIONS = new Set(['unitStats', 'buildingBases', 'mineBases']);
+
+function deepMergeSection(section, data) {
+  if (NESTED_SECTIONS.has(section)) {
+    for (const key of Object.keys(data)) {
+      if (typeof data[key] === 'object' && data[key] !== null) {
+        _config[section][key] = { ...(_config[section][key] ?? {}), ...data[key] };
+        // unitStats has a nested cost object
+        if (section === 'unitStats' && data[key].cost) {
+          _config[section][key].cost = { ...(_config[section][key]?.cost ?? {}), ...data[key].cost };
+        }
+      } else {
+        _config[section][key] = data[key];
+      }
     }
   } else {
     _config[section] = { ..._config[section], ...data };
   }
+}
+
+export async function updateGameConfigSection(section, data) {
+  if (!(section in _config)) throw new Error(`Unknown config section: ${section}`);
+  deepMergeSection(section, data);
   await prisma.serverConfig.upsert({
     where:  { key: 'game_config' },
     update: { value: JSON.stringify(_config) },

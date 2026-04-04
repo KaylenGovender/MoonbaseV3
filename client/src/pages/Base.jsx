@@ -10,7 +10,7 @@ import ActiveEvents from '../components/ActiveEvents.jsx';
 import BattleReports from '../components/BattleReports.jsx';
 import ClaimBaseModal from '../components/ClaimBaseModal.jsx';
 import TransferModal from '../components/TransferModal.jsx';
-import { siloCapacity } from '../utils/gameConstants.js';
+import { siloCapacity, APP_VERSION } from '../utils/gameConstants.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 
@@ -37,8 +37,9 @@ export default function Base() {
       .catch(() => setCurrentSeason(null));
   }, []);
 
+  let toastCounter = 0;
   function addToast(message, type = 'info') {
-    const id = Date.now();
+    const id = `${Date.now()}-${toastCounter++}`;
     setToasts((t) => [...t, { id, message, type }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 5000);
   }
@@ -61,7 +62,6 @@ export default function Base() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('combat:report',    load);
     socket.on('combat:completed', load);
     socket.on('combat:loot_returned', load);
 
@@ -93,7 +93,6 @@ export default function Base() {
     });
 
     return () => {
-      socket.off('combat:report',    load);
       socket.off('combat:completed', load);
       socket.off('combat:loot_returned', load);
       socket.off('tradepod:arrived');
@@ -193,7 +192,7 @@ export default function Base() {
             )}
           </div>
           <div className="text-xs text-slate-500">
-            {base.season?.name ?? 'Season 1'} · <span className="text-slate-600">App v3.0.1</span>
+            {base.season?.name ?? 'Season 1'} · <span className="text-slate-600">App {APP_VERSION}</span>
           </div>
         </div>
         <div className="flex items-center gap-3">

@@ -53,7 +53,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // App version — client polls this to detect new deployments
-app.get('/api/version', (_req, res) => res.json({ version: 'v3.0.1' }));
+app.get('/api/version', (_req, res) => res.json({ version: 'v3.0.2' }));
 
 // Public game config — client uses this to show current costs/stats
 app.get('/api/config/game', (_req, res) => res.json(getGameConfig()));
