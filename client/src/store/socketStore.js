@@ -10,6 +10,9 @@ function isActiveBase(baseId) {
 export const useSocketStore = create((set, get) => ({
   socket:    null,
   connected: false,
+  allianceNotif: false, // true when unread alliance chat/request/invite
+
+  clearAllianceNotif: () => set({ allianceNotif: false }),
 
   connect: (token) => {
     // Destroy any existing socket before creating a new one (prevents duplicates)
@@ -73,6 +76,13 @@ export const useSocketStore = create((set, get) => ({
     // Season ended
     socket.on('season:ended', () => {
       window.location.reload();
+    });
+
+    // Alliance chat notification — set dot when message arrives and user isn't on alliance page
+    socket.on('chat:message', () => {
+      if (!window.location.pathname.startsWith('/alliance')) {
+        set({ allianceNotif: true });
+      }
     });
 
     set({ socket });

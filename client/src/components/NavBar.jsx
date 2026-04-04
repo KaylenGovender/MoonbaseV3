@@ -1,7 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { useBaseStore } from '../store/baseStore.js';
-import { useState } from 'react';
+import { useSocketStore } from '../store/socketStore.js';
+import { useState, useEffect } from 'react';
 
 const MAIN_TABS = [
   { to: '/base',        label: 'Base',    icon: '🌕' },
@@ -16,8 +17,18 @@ export default function NavBar() {
   const activeBaseId = useAuthStore((s) => s.activeBaseId);
   const setActiveBase = useAuthStore((s) => s.setActiveBase);
   const user         = useAuthStore((s) => s.user);
+  const allianceNotif = useSocketStore((s) => s.allianceNotif);
+  const clearAllianceNotif = useSocketStore((s) => s.clearAllianceNotif);
+  const location = useLocation();
   const [showBases, setShowBases] = useState(false);
   const navigate = useNavigate();
+
+  // Clear alliance notification when user navigates to alliance page
+  useEffect(() => {
+    if (location.pathname.startsWith('/alliance') && allianceNotif) {
+      clearAllianceNotif();
+    }
+  }, [location.pathname, allianceNotif]);
 
   // Red badge on Map tab when there is an incoming attack
   const attacksReceived = useBaseStore((s) => s.base?.attacksReceived ?? []);
@@ -45,6 +56,9 @@ export default function NavBar() {
                   <span className="text-lg leading-none">{tab.icon}</span>
                   {tab.to === '/map' && hasIncomingAttack && (
                     <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border border-space-800 animate-pulse" />
+                  )}
+                  {tab.to === '/alliance' && allianceNotif && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full border border-space-800 animate-pulse" />
                   )}
                   <span className="font-medium">{tab.label}</span>
                 </div>

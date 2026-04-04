@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatCountdown, formatEta } from '../utils/format.js';
 import { BUILDING_META, UNIT_META } from '../utils/gameConstants.js';
+import UnitIcon from './UnitIcon.jsx';
 
 export default function ActiveEvents({ base }) {
   const [, tick] = useState(0);
@@ -91,7 +92,7 @@ export default function ActiveEvents({ base }) {
         return (
         <EventRow
           key={job.id}
-          icon={uMeta?.icon ?? '🏭'}
+          icon={<UnitIcon type={job.unitType} size={18} />}
           color="text-blue-400"
           bg="bg-blue-900/20 border-blue-800/40"
           label={`Building ${job.quantity}× ${uMeta?.label ?? formatUnitName(job.unitType)}`}

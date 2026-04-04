@@ -7,6 +7,7 @@ import PlayerProfileModal from '../components/PlayerProfileModal.jsx';
 
 const TABS = [
   { key: 'alliances', label: 'Alliances',   icon: '🤝' },
+  { key: 'population', label: 'Population', icon: '👥' },
   { key: 'attacker',  label: 'Attackers',   icon: '⚔️' },
   { key: 'defender',  label: 'Defenders',   icon: '🛡️' },
   { key: 'raider',    label: 'Raiders',     icon: '💰' },
@@ -40,6 +41,7 @@ export default function Leaderboard() {
   const [tab,  setTab]   = useState('alliances');
   const [data, setData]  = useState([]);
   const [allianceData, setAllianceData] = useState([]);
+  const [populationData, setPopulationData] = useState([]);
   const [myRank, setMyRank] = useState(null);
   const [season, setSeason] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -64,12 +66,22 @@ export default function Leaderboard() {
   }, []);
 
   useEffect(() => {
-    if (tab === 'alliances') return;
+    if (tab === 'alliances' || tab === 'population') return;
     setLoading(true);
     const path = `/leaderboard/medals?type=${tab}`;
     api.get(path)
       .then((d) => setData(d.entries ?? []))
       .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  }, [tab]);
+
+  // Fetch population leaderboard
+  useEffect(() => {
+    if (tab !== 'population') return;
+    setLoading(true);
+    api.get('/leaderboard/population')
+      .then((d) => setPopulationData(d.entries ?? []))
+      .catch(() => setPopulationData([]))
       .finally(() => setLoading(false));
   }, [tab]);
 
@@ -184,6 +196,50 @@ export default function Leaderboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          )
+        ) : tab === 'population' ? (
+          loading ? (
+            <div className="text-center py-8 text-slate-500 text-sm">Loading…</div>
+          ) : populationData.length === 0 ? (
+            <div className="text-center py-8 text-slate-600 text-sm">No population data yet</div>
+          ) : (
+            <div className="space-y-1">
+              {populationData.map((entry) => {
+                const isMe = entry.userId === user?.id;
+                return (
+                  <div
+                    key={entry.userId}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg
+                      ${isMe ? 'bg-blue-900/30 border border-blue-700/40' : 'bg-space-700/50'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 text-center text-sm font-mono font-bold text-slate-400">
+                        {rankMeta[entry.rank] ?? <span className="text-slate-500">#{entry.rank}</span>}
+                      </span>
+                      <button
+                        onClick={() => setProfileUser({ userId: entry.userId, username: entry.username })}
+                        className="w-8 h-8 rounded-full bg-space-600 hover:bg-space-500 flex items-center justify-center text-xs font-bold text-white transition-colors"
+                      >
+                        {getInitials(entry.username ?? '?')}
+                      </button>
+                      <button
+                        onClick={() => setProfileUser({ userId: entry.userId, username: entry.username })}
+                        className="text-left hover:text-blue-400 transition-colors"
+                      >
+                        <div className={`text-sm font-medium ${isMe ? 'text-blue-300' : 'text-white'}`}>
+                          {entry.username}
+                          {isMe && <span className="text-[10px] text-blue-400 ml-1">(you)</span>}
+                        </div>
+                      </button>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-white font-mono text-sm">{formatNumber(entry.points)}</div>
+                      <div className="text-[10px] text-slate-500">pop</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )
         ) : loading ? (

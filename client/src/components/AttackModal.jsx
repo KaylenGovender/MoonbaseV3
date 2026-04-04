@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
+import UnitIcon from './UnitIcon.jsx';
 
 function calcDistance(a, b) {
   if (!a || !b) return null;
@@ -118,7 +119,7 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
             return (
               <div key={stock.type} className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 w-32">
-                  <span className="text-xl">{meta.icon}</span>
+                  <UnitIcon type={stock.type} size={22} />
                   <div>
                     <div className="text-sm text-white">{meta.label}</div>
                     <div className="text-xs text-slate-500">Avail: {formatNumber(stock.count)}</div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../utils/api.js';
 import { useAuthStore } from '../store/authStore.js';
 import { UNIT_META } from '../utils/gameConstants.js';
+import UnitIcon from './UnitIcon.jsx';
 import { formatNumber } from '../utils/format.js';
 
 const RESOURCES = [
@@ -146,7 +147,7 @@ export default function TransferModal({ fromBaseId, resources, onClose, onSucces
               return (
                 <div key={type} className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-                    <span className="text-base">{meta.icon}</span>
+                    <UnitIcon type={type} size={18} />
                     <span className="text-sm text-slate-300">{meta.label}</span>
                   </div>
                   <div className="flex-1 flex items-center gap-2">

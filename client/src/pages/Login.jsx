@@ -44,10 +44,10 @@ export default function Login() {
           )}
 
           <div>
-            <label className="label">Commander Name</label>
+            <label className="label">Username or Email</label>
             <input
               className="input"
-              placeholder="your_username"
+              placeholder="your_username or email"
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               autoCapitalize="none"

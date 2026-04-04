@@ -55,18 +55,24 @@ function AuthLayout({ children }) {
       } catch {}
     }
     checkVersion();
+    // Check on visibility change AND periodically every 5 minutes
     const onVisible = () => { if (document.visibilityState === 'visible') checkVersion(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    const iv = setInterval(checkVersion, 300000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(iv); };
   }, []);
 
   // Announcement banner
   const [announcement, setAnnouncement] = useState('');
   useEffect(() => {
-    fetch('/api/announcement').then(r => r.json()).then(d => setAnnouncement(d.text ?? '')).catch(() => {});
-    const iv = setInterval(() => {
-      fetch('/api/announcement').then(r => r.json()).then(d => setAnnouncement(d.text ?? '')).catch(() => {});
-    }, 60000);
+    const fetchAnnouncement = () => {
+      fetch('/api/announcement', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => setAnnouncement(d.text ?? ''))
+        .catch(() => {});
+    };
+    fetchAnnouncement();
+    const iv = setInterval(fetchAnnouncement, 30000);
     return () => clearInterval(iv);
   }, []);
 

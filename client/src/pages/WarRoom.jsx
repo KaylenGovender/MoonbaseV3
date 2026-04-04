@@ -5,6 +5,7 @@ import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber, formatCountdown } from '../utils/format.js';
 import { UNIT_META, HELIUM_UPKEEP } from '../utils/gameConstants.js';
+import UnitIcon from '../components/UnitIcon.jsx';
 
 const UNIT_TYPES = ['MOONBUGGY', 'GUNSHIP', 'TANK', 'HARVESTER', 'DRONE', 'TITAN'];
 
@@ -147,7 +148,7 @@ export default function WarRoom() {
                 return (
                   <div key={job.id} className="card flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{meta.icon}</span>
+                      <span className="text-xl"><UnitIcon type={job.unitType} size={22} /></span>
                       <div>
                         <div className="text-sm text-white">{job.quantity}× {meta.label}</div>
                         <div className="text-xs text-slate-500">Building…</div>
@@ -245,7 +246,7 @@ export default function WarRoom() {
               const meta  = UNIT_META[type] ?? { icon: '⚔️', label: type };
               return (
                 <div key={type} className="card text-center py-3">
-                  <div className="text-2xl mb-1">{meta.icon}</div>
+                  <div className="text-2xl mb-1"><UnitIcon type={type} size={28} /></div>
                   <div className="text-xs text-slate-400 mb-1">{meta.label}</div>
                   <div className="text-lg font-bold text-white font-mono">
                     {formatNumber(stock?.count ?? 0)}
@@ -280,7 +281,7 @@ export default function WarRoom() {
                 <div key={type} className="card">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">{meta.icon}</span>
+                      <span className="text-2xl"><UnitIcon type={type} size={28} /></span>
                       <div>
                         <div className="text-sm font-semibold text-white">{meta.label}</div>
                         <div className="text-[10px] text-slate-500">

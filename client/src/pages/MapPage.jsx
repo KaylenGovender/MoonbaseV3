@@ -7,6 +7,7 @@ import { api } from '../utils/api.js';
 import CanvasMap from '../components/CanvasMap.jsx';
 import AttackModal from '../components/AttackModal.jsx';
 import { radarRange, UNIT_META } from '../utils/gameConstants.js';
+import UnitIcon from '../components/UnitIcon.jsx';
 
 function useProtectionCountdown(protectedUntil) {
   const [ms, setMs] = useState(() => protectedUntil ? new Date(protectedUntil) - Date.now() : 0);
@@ -219,7 +220,7 @@ export default function MapPage() {
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {Object.entries(UNIT_META).map(([type, meta]) => (
                   <div key={type} className="flex items-center gap-1">
-                    <span className="text-base">{meta.icon}</span>
+                    <UnitIcon type={type} size={18} />
                     <input
                       type="number"
                       min="0"

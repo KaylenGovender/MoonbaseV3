@@ -161,9 +161,13 @@ router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password required' });
+      return res.status(400).json({ error: 'Username/email and password required' });
     }
-    const user = await prisma.user.findUnique({ where: { username } });
+    // Support login with username OR email
+    const isEmail = username.includes('@');
+    const user = isEmail
+      ? await prisma.user.findUnique({ where: { email: username } })
+      : await prisma.user.findUnique({ where: { username } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

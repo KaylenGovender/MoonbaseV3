@@ -224,8 +224,9 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     // Radar circles — drawn as part of fog of war overlay below
     const now = Date.now();
 
-    // Attack lines — solid, with parallel offset for mutual attacks
+    // Attack lines — dotted destination path + solid progress line
     const attacksList = attacks ?? [];
+    const BASE_R = 8; // match hex base radius for line offset
     for (const attack of attacksList) {
       const ax = kmToWorld(attack.attackerBase.x, cs);
       const ay = kmToWorld(attack.attackerBase.y, cs);
@@ -240,45 +241,68 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
                a.defenderBaseId === attack.attackerBaseId &&
                a.status !== 'COMPLETED',
       );
-      // Perpendicular offset — fixed 5 screen pixels regardless of zoom
+      // Perpendicular offset for mutual attacks
       let ox = 0, oy = 0;
+      const fullLen = Math.sqrt((dx - ax) ** 2 + (dy - ay) ** 2) || 1;
+      const ux = (dx - ax) / fullLen; // unit vector attacker→defender
+      const uy = (dy - ay) / fullLen;
       if (hasMutual) {
-        const len = Math.sqrt((dx - ax) ** 2 + (dy - ay) ** 2) || 1;
-        const worldOffset = 5 / scale; // convert 5 screen px → world units
-        ox = (-(dy - ay) / len) * worldOffset;
-        oy = ((dx - ax) / len) * worldOffset;
+        const worldOffset = 5 / scale;
+        ox = -uy * worldOffset;
+        oy =  ux * worldOffset;
       }
 
-      ctx.setLineDash([]);
-      ctx.lineWidth = 1.5;
+      // Offset start/end points outward from base centres by BASE_R
+      const sax = ax + ux * BASE_R + ox;
+      const say = ay + uy * BASE_R + oy;
+      const sdx = dx - ux * BASE_R + ox;
+      const sdy = dy - uy * BASE_R + oy;
+
+      const color = isOwn ? 'rgba(74,222,128,' : 'rgba(239,68,68,';
+      const dotColor = isOwn ? '#4ade80' : '#ef4444';
 
       if (attack.status === 'RETURNING' && attack.returnTime) {
         const arrival  = new Date(attack.arrivalTime).getTime();
         const ret      = new Date(attack.returnTime).getTime();
         const progress = ret > arrival ? Math.min((now - arrival) / (ret - arrival), 1) : 1;
-        const rx = dx + (ax - dx) * progress + ox;
-        const ry = dy + (ay - dy) * progress + oy;
         const won = attack.attackerWon;
-        ctx.strokeStyle = won ? 'rgba(74,222,128,0.7)' : 'rgba(239,68,68,0.7)';
-        ctx.beginPath(); ctx.moveTo(dx + ox, dy + oy); ctx.lineTo(rx, ry); ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(rx, ry, 2 / scale, 0, 2 * Math.PI);
-        ctx.fillStyle = won ? '#4ade80' : '#ef4444';
-        ctx.fill();
+        const rc = won ? 'rgba(74,222,128,' : 'rgba(239,68,68,';
+        const rd = won ? '#4ade80' : '#ef4444';
+        // Return path: defender → attacker (offsets reversed)
+        const rux = -ux, ruy = -uy;
+        const rsx = dx + rux * BASE_R + ox;
+        const rsy = dy + ruy * BASE_R + oy;
+        const rex = ax - rux * BASE_R + ox;
+        const rey = ay - ruy * BASE_R + oy;
+        const rx = rsx + (rex - rsx) * progress;
+        const ry = rsy + (rey - rsy) * progress;
+        // Dotted full return path
+        ctx.setLineDash([4, 6]); ctx.lineWidth = 1; ctx.strokeStyle = rc + '0.25)';
+        ctx.beginPath(); ctx.moveTo(rsx, rsy); ctx.lineTo(rex, rey); ctx.stroke();
+        // Solid progress
+        ctx.setLineDash([]); ctx.lineWidth = 1.5; ctx.strokeStyle = rc + '0.7)';
+        ctx.beginPath(); ctx.moveTo(rsx, rsy); ctx.lineTo(rx, ry); ctx.stroke();
+        // Moving dot
+        ctx.beginPath(); ctx.arc(rx, ry, 2 / scale, 0, 2 * Math.PI);
+        ctx.fillStyle = rd; ctx.fill();
       } else {
         const launch   = new Date(attack.launchTime).getTime();
         const arrival  = new Date(attack.arrivalTime).getTime();
         const progress = Math.min((now - launch) / (arrival - launch), 1);
-        const mx = ax + (dx - ax) * progress + ox;
-        const my = ay + (dy - ay) * progress + oy;
-        ctx.strokeStyle = isOwn ? 'rgba(74,222,128,0.8)' : 'rgba(239,68,68,0.8)';
-        ctx.beginPath(); ctx.moveTo(ax + ox, ay + oy); ctx.lineTo(mx, my); ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(mx, my, 2 / scale, 0, 2 * Math.PI);
-        ctx.fillStyle = isOwn ? '#4ade80' : '#ef4444';
-        ctx.fill();
+        const mx = sax + (sdx - sax) * progress;
+        const my = say + (sdy - say) * progress;
+        // Dotted full path to destination
+        ctx.setLineDash([4, 6]); ctx.lineWidth = 1; ctx.strokeStyle = color + '0.25)';
+        ctx.beginPath(); ctx.moveTo(sax, say); ctx.lineTo(sdx, sdy); ctx.stroke();
+        // Solid progress line
+        ctx.setLineDash([]); ctx.lineWidth = 1.5; ctx.strokeStyle = color + '0.8)';
+        ctx.beginPath(); ctx.moveTo(sax, say); ctx.lineTo(mx, my); ctx.stroke();
+        // Moving dot
+        ctx.beginPath(); ctx.arc(mx, my, 2 / scale, 0, 2 * Math.PI);
+        ctx.fillStyle = dotColor; ctx.fill();
       }
     }
+    ctx.setLineDash([]);
 
     // Trade pod lines
     for (const pod of (tradePods ?? [])) {
