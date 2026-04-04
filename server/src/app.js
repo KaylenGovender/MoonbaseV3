@@ -13,6 +13,8 @@ import leaderboardRoutes from './routes/leaderboard.js';
 import seasonRoutes from './routes/season.js';
 import tradepodRoutes from './routes/tradepod.js';
 import adminRoutes from './routes/admin.js';
+import reinforcementRoutes from './routes/reinforcement.js';
+import { getGameConfig } from './services/gameConfigService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = join(__dirname, '..', '..', 'client', 'dist');
@@ -38,6 +40,12 @@ app.use(express.json({ limit: '1mb' }));
 // Health check
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+// App version — client polls this to detect new deployments
+app.get('/api/version', (_req, res) => res.json({ version: 'v3.0.1' }));
+
+// Public game config — client uses this to show current costs/stats
+app.get('/api/config/game', (_req, res) => res.json(getGameConfig()));
+
 // API routes
 app.use('/api/auth',        authRoutes);
 app.use('/api/base',        baseRoutes);
@@ -48,7 +56,8 @@ app.use('/api/chat',        chatRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/season',      seasonRoutes);
 app.use('/api/tradepod',    tradepodRoutes);
-app.use('/api/admin',       adminRoutes);
+app.use('/api/admin',           adminRoutes);
+app.use('/api/reinforcement',   reinforcementRoutes);
 
 // Serve built React client
 app.use(express.static(CLIENT_DIST));

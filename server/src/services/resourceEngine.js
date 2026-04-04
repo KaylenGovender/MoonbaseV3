@@ -141,30 +141,29 @@ export async function applyHeliumAttrition(base, io) {
 
 /**
  * Deduct resources from a base. Returns false if insufficient.
+ * Uses atomic conditional update to prevent race conditions.
  */
 export async function deductResources(baseId, cost) {
-  const state = await prisma.resourceState.findUnique({ where: { baseId } });
-  if (!state) return false;
+  const o = cost.oxygen  || 0;
+  const w = cost.water   || 0;
+  const i = cost.iron    || 0;
+  const h = cost.helium3 || 0;
 
-  if (
-    state.oxygen  < (cost.oxygen  || 0) ||
-    state.water   < (cost.water   || 0) ||
-    state.iron    < (cost.iron    || 0) ||
-    state.helium3 < (cost.helium3 || 0)
-  ) {
-    return false;
-  }
-
-  await prisma.resourceState.update({
-    where: { baseId },
-    data: {
-      oxygen:  state.oxygen  - (cost.oxygen  || 0),
-      water:   state.water   - (cost.water   || 0),
-      iron:    state.iron    - (cost.iron    || 0),
-      helium3: state.helium3 - (cost.helium3 || 0),
-    },
-  }).catch(() => {});
-  return true;
+  // Atomic: only deduct if all resources are sufficient
+  const result = await prisma.$executeRawUnsafe(
+    `UPDATE "ResourceState"
+     SET "oxygen"  = "oxygen"  - $1,
+         "water"   = "water"   - $2,
+         "iron"    = "iron"    - $3,
+         "helium3" = "helium3" - $4
+     WHERE "baseId" = $5
+       AND "oxygen"  >= $1
+       AND "water"   >= $2
+       AND "iron"    >= $3
+       AND "helium3" >= $4`,
+    o, w, i, h, baseId
+  );
+  return result > 0; // rows affected — 0 means insufficient
 }
 
 /**

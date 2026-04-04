@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
 import { deductResources, addResources } from '../services/resourceEngine.js';
-import { TRADE_POD_SPEED } from '../config/gameConfig.js';
+import { getTradePodSpeed } from '../services/gameConfigService.js';
 import { distanceBetween } from '../services/placementService.js';
 
 const router = Router();
@@ -62,7 +62,7 @@ router.post('/:baseId/send', requireAuth, async (req, res) => {
     if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
 
     const dist = distanceBetween(fromBase.x, fromBase.y, toBase.x, toBase.y);
-    const travelHours = dist / TRADE_POD_SPEED;
+    const travelHours = dist / getTradePodSpeed();
     const travelMs = travelHours * 3600 * 1000;
     const arrivalTime = new Date(Date.now() + travelMs);
 

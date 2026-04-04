@@ -101,8 +101,43 @@ router.post('/request/:requestId/accept', requireAuth, async (req, res) => {
     if (!request || request.type !== 'JOIN_REQUEST' || request.status !== 'PENDING') {
       return res.status(404).json({ error: 'Request not found' });
     }
-    const alliance = await prisma.alliance.findUnique({ where: { id: request.allianceId } });
+    const alliance = await prisma.alliance.findUnique({
+      where: { id: request.allianceId },
+      include: { members: true },
+    });
     if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    // Check member cap before accepting
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    const memberIds = alliance.members.map((m) => m.userId);
+    const memberBases = season
+      ? await prisma.base.findMany({ where: { userId: { in: memberIds }, seasonId: season.id } })
+      : [];
+    const allianceBuildings = await prisma.building.findMany({
+      where: { baseId: { in: memberBases.map((b) => b.id) }, type: 'ALLIANCE' },
+    });
+    const levelByUser = {};
+    for (const base of memberBases) {
+      const building = allianceBuildings.find((b) => b.baseId === base.id);
+      const lvl = building ? (building.upgradeEndsAt ? building.level - 1 : building.level) : 0;
+      levelByUser[base.userId] = Math.max(levelByUser[base.userId] ?? 0, lvl);
+    }
+    // Check the joining user's alliance building level too
+    const joinerBases = season
+      ? await prisma.base.findMany({ where: { userId: request.invitedUserId, seasonId: season.id } })
+      : [];
+    const joinerBuilding = await prisma.building.findFirst({
+      where: { baseId: { in: joinerBases.map((b) => b.id) }, type: 'ALLIANCE' },
+    });
+    const joinerLevel = joinerBuilding ? (joinerBuilding.upgradeEndsAt ? joinerBuilding.level - 1 : joinerBuilding.level) : 0;
+    const newCount = memberIds.length + 1;
+    const allLevels = [...memberIds.map((uid) => levelByUser[uid] ?? 0), joinerLevel];
+    const effectiveLevel = Math.min(...allLevels);
+    if (newCount > effectiveLevel) {
+      return res.status(400).json({
+        error: `Alliance building level too low. All members need level ≥ ${newCount}`,
+      });
+    }
 
     await prisma.allianceInvite.update({ where: { id: request.id }, data: { status: 'ACCEPTED' } });
     await prisma.allianceMember.create({
@@ -172,6 +207,59 @@ router.post('/create', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/alliance/my/info — current player's alliance (MUST be before GET /:id)
+router.get('/my/info', requireAuth, async (req, res) => {
+  try {
+    const membership = await prisma.allianceMember.findFirst({
+      where: { userId: req.user.id },
+      include: {
+        alliance: {
+          include: {
+            members: {
+              include: { user: { select: { id: true, username: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!membership) return res.json({ alliance: null });
+
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    const memberUserIds = membership.alliance.members.map((m) => m.userId);
+    const memberBases = season
+      ? await prisma.base.findMany({
+          where: { userId: { in: memberUserIds }, seasonId: season.id, isAdmin: false },
+          select: { id: true, name: true, userId: true, populationPoints: true },
+        })
+      : [];
+
+    const memberMedals = season
+      ? await prisma.medal.findMany({
+          where: { userId: { in: memberUserIds }, seasonId: season.id },
+          select: { userId: true, attackerPoints: true, defenderPoints: true, raiderPoints: true },
+        })
+      : [];
+
+    const enrichedMembers = membership.alliance.members.map((m) => {
+      const mBases  = memberBases.filter((b) => b.userId === m.userId);
+      const mMedals = memberMedals.filter((med) => med.userId === m.userId);
+      return {
+        ...m,
+        role: m.role ?? 'MEMBER',
+        primaryBase: mBases[0] ?? null,
+        populationPoints: mBases.reduce((s, b) => s + (b.populationPoints ?? 0), 0),
+        attackerPoints:   mMedals.reduce((s, med) => s + (med.attackerPoints ?? 0), 0),
+        defenderPoints:   mMedals.reduce((s, med) => s + (med.defenderPoints ?? 0), 0),
+        raiderPoints:     mMedals.reduce((s, med) => s + (med.raiderPoints ?? 0), 0),
+      };
+    });
+
+    res.json({ alliance: { ...membership.alliance, members: enrichedMembers } });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/alliance/:id
 router.get('/:id', requireAuth, async (req, res) => {
   try {
@@ -189,7 +277,6 @@ router.get('/:id', requireAuth, async (req, res) => {
     });
     if (!alliance) return res.status(404).json({ error: 'Alliance not found' });
 
-    // Calculate effective level = min of all member Alliance building levels
     const memberIds = alliance.members.map((m) => m.userId);
     const season = await prisma.season.findFirst({ where: { isActive: true } });
     const memberBases = season
@@ -201,11 +288,10 @@ router.get('/:id', requireAuth, async (req, res) => {
       where: { baseId: { in: memberBases.map((b) => b.id) }, type: 'ALLIANCE' },
     });
 
-    // Group by userId -> max level per user
     const levelByUser = {};
     for (const base of memberBases) {
       const building = allianceBuildings.find((b) => b.baseId === base.id);
-      const lvl = building?.level ?? 0;
+      const lvl = building ? (building.upgradeEndsAt ? building.level - 1 : building.level) : 0;
       levelByUser[base.userId] = Math.max(levelByUser[base.userId] ?? 0, lvl);
     }
     const effectiveLevel =
@@ -214,28 +300,6 @@ router.get('/:id', requireAuth, async (req, res) => {
         : 0;
 
     res.json({ alliance, effectiveLevel, maxMembers: effectiveLevel });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/alliance/my — current player's alliance
-router.get('/my/info', requireAuth, async (req, res) => {
-  try {
-    const membership = await prisma.allianceMember.findFirst({
-      where: { userId: req.user.id },
-      include: {
-        alliance: {
-          include: {
-            members: {
-              include: { user: { select: { id: true, username: true } } },
-            },
-          },
-        },
-      },
-    });
-    if (!membership) return res.json({ alliance: null });
-    res.json({ alliance: membership.alliance });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -272,7 +336,7 @@ router.post('/:id/invite', requireAuth, async (req, res) => {
     const levelByUser = {};
     for (const base of memberBases) {
       const building = allianceBuildings.find((b) => b.baseId === base.id);
-      levelByUser[base.userId] = Math.max(levelByUser[base.userId] ?? 0, building?.level ?? 0);
+      levelByUser[base.userId] = Math.max(levelByUser[base.userId] ?? 0, building ? (building.upgradeEndsAt ? building.level - 1 : building.level) : 0);
     }
 
     // Also check invited user's alliance building level
@@ -282,7 +346,7 @@ router.post('/:id/invite', requireAuth, async (req, res) => {
     const invitedBuilding = await prisma.building.findFirst({
       where: { baseId: { in: invitedBases.map((b) => b.id) }, type: 'ALLIANCE' },
     });
-    const invitedLevel = invitedBuilding?.level ?? 0;
+    const invitedLevel = invitedBuilding ? (invitedBuilding.upgradeEndsAt ? invitedBuilding.level - 1 : invitedBuilding.level) : 0;
 
     const newCount = memberIds.length + 1;
     const allLevels = [...memberIds.map((uid) => levelByUser[uid] ?? 0), invitedLevel];
@@ -329,6 +393,34 @@ router.post('/invite/:inviteId/accept', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invite already resolved' });
     }
 
+    // Re-check member cap at acceptance time
+    const alliance = await prisma.alliance.findUnique({
+      where: { id: invite.allianceId },
+      include: { members: true },
+    });
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    const memberIds = alliance.members.map((m) => m.userId);
+    const memberBases = season
+      ? await prisma.base.findMany({ where: { userId: { in: [...memberIds, req.user.id] }, seasonId: season.id } })
+      : [];
+    const allianceBuildings = await prisma.building.findMany({
+      where: { baseId: { in: memberBases.map((b) => b.id) }, type: 'ALLIANCE' },
+    });
+    const levelByUser = {};
+    for (const base of memberBases) {
+      const building = allianceBuildings.find((b) => b.baseId === base.id);
+      const lvl = building ? (building.upgradeEndsAt ? building.level - 1 : building.level) : 0;
+      levelByUser[base.userId] = Math.max(levelByUser[base.userId] ?? 0, lvl);
+    }
+    const newCount = memberIds.length + 1;
+    const allLevels = [...memberIds, req.user.id].map((uid) => levelByUser[uid] ?? 0);
+    const effectiveLevel = Math.min(...allLevels);
+    if (newCount > effectiveLevel) {
+      return res.status(400).json({
+        error: `Alliance is full. All members need Alliance building level ≥ ${newCount}`,
+      });
+    }
+
     await prisma.allianceInvite.update({
       where: { id: invite.id },
       data: { status: 'ACCEPTED' },
@@ -363,18 +455,63 @@ router.post('/invite/:inviteId/decline', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/alliance/:id/promote/:userId — leader promotes member to admin
+router.post('/:id/promote/:userId', requireAuth, async (req, res) => {
+  try {
+    const { id: allianceId, userId: targetUserId } = req.params;
+    const alliance = await prisma.alliance.findUnique({ where: { id: allianceId } });
+    if (!alliance) return res.status(404).json({ error: 'Not found' });
+    if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Only leader can promote' });
+
+    await prisma.allianceMember.update({
+      where: { allianceId_userId: { allianceId, userId: targetUserId } },
+      data: { role: 'ADMIN' },
+    });
+
+    res.json({ ok: true, role: 'ADMIN' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/alliance/:id/demote/:userId — leader demotes admin back to member
+router.post('/:id/demote/:userId', requireAuth, async (req, res) => {
+  try {
+    const { id: allianceId, userId: targetUserId } = req.params;
+    const alliance = await prisma.alliance.findUnique({ where: { id: allianceId } });
+    if (!alliance) return res.status(404).json({ error: 'Not found' });
+    if (alliance.leaderId !== req.user.id) return res.status(403).json({ error: 'Only leader can demote' });
+
+    await prisma.allianceMember.update({
+      where: { allianceId_userId: { allianceId, userId: targetUserId } },
+      data: { role: 'MEMBER' },
+    });
+
+    res.json({ ok: true, role: 'MEMBER' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/alliance/:id/kick/:userId
 router.post('/:id/kick/:userId', requireAuth, async (req, res) => {
   try {
     const { id: allianceId, userId: kickUserId } = req.params;
     const alliance = await prisma.alliance.findUnique({ where: { id: allianceId } });
     if (!alliance) return res.status(404).json({ error: 'Not found' });
-    if (alliance.leaderId !== req.user.id) {
-      return res.status(403).json({ error: 'Only leader can kick' });
-    }
-    if (kickUserId === req.user.id) {
-      return res.status(400).json({ error: 'Cannot kick yourself' });
-    }
+
+    const isLeader = alliance.leaderId === req.user.id;
+    let isAdmin = false;
+    try {
+      const myMem = await prisma.allianceMember.findUnique({
+        where: { allianceId_userId: { allianceId, userId: req.user.id } },
+      });
+      isAdmin = myMem?.role === 'ADMIN';
+    } catch {}
+
+    if (!isLeader && !isAdmin) return res.status(403).json({ error: 'Only leader or admin can kick' });
+    if (kickUserId === req.user.id) return res.status(400).json({ error: 'Cannot kick yourself' });
+    if (!isLeader && kickUserId === alliance.leaderId) return res.status(403).json({ error: 'Admins cannot kick the leader' });
 
     await prisma.allianceMember.delete({
       where: { allianceId_userId: { allianceId, userId: kickUserId } },
@@ -425,6 +562,31 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+
+// GET /api/alliance/:id/members — returns member list for any alliance (for leaderboard)
+router.get('/:id/members', requireAuth, async (req, res) => {
+  try {
+    const alliance = await prisma.alliance.findUnique({
+      where: { id: req.params.id },
+      include: {
+        members: {
+          include: { user: { select: { id: true, username: true } } },
+        },
+      },
+    });
+    if (!alliance) return res.status(404).json({ error: 'Not found' });
+    res.json({
+      name: alliance.name,
+      members: alliance.members.map((m) => ({
+        username:  m.user?.username ?? '?',
+        isLeader:  m.userId === alliance.leaderId,
+        role:      m.role ?? 'MEMBER',
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 router.get('/invites/mine', requireAuth, async (req, res) => {
   try {

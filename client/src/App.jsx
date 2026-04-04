@@ -11,7 +11,11 @@ import Alliance from './pages/Alliance.jsx';
 import Leaderboard from './pages/Leaderboard.jsx';
 import ResourceDetail from './pages/ResourceDetail.jsx';
 import BuildingDetail from './pages/BuildingDetail.jsx';
+import Admin from './pages/Admin.jsx';
 import NavBar from './components/NavBar.jsx';
+
+const APP_VERSION = 'v3.0.1';
+const VERSION_CHECK_KEY = 'versionReloaded';
 
 function RequireAuth({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -20,14 +24,40 @@ function RequireAuth({ children }) {
 
 function AuthLayout({ children }) {
   const token = useAuthStore((s) => s.token);
+  const refreshBases = useAuthStore((s) => s.refreshBases);
+  const loadGameConfig = useAuthStore((s) => s.loadGameConfig);
   const { connect, disconnect } = useSocketStore();
 
   useEffect(() => {
     if (token) {
       connect(token);
+      refreshBases(); // Always sync fresh bases on mount (handles new season, repairs)
+      loadGameConfig(); // Load live unit speeds and game config
       return () => disconnect();
     }
   }, [token]);
+
+  // Auto-refresh once when server version differs from client version
+  useEffect(() => {
+    async function checkVersion() {
+      try {
+        const res = await fetch('/api/version');
+        const data = await res.json();
+        if (data.version && data.version !== APP_VERSION) {
+          if (!sessionStorage.getItem(VERSION_CHECK_KEY)) {
+            sessionStorage.setItem(VERSION_CHECK_KEY, '1');
+            window.location.reload();
+          }
+        } else {
+          sessionStorage.removeItem(VERSION_CHECK_KEY);
+        }
+      } catch {}
+    }
+    checkVersion();
+    const onVisible = () => { if (document.visibilityState === 'visible') checkVersion(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -58,6 +88,7 @@ export default function App() {
                   <Route path="warroom"                      element={<WarRoom        />} />
                   <Route path="alliance"                     element={<Alliance       />} />
                   <Route path="leaderboard"                  element={<Leaderboard   />} />
+                  <Route path="admin"                        element={<Admin          />} />
                   <Route path="*"                            element={<Navigate to="/base" replace />} />
                 </Routes>
               </AuthLayout>

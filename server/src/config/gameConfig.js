@@ -2,6 +2,7 @@
 
 // ─── Building costs per level [level 1 .. 20] ────────────────────────────────
 // Each entry: { oxygen, water, iron, helium3, timeSeconds }
+// ALL buildings require all 4 resources
 function buildingLevelConfig(baseO2, baseWater, baseIron, baseHe3, baseTime) {
   return Array.from({ length: 20 }, (_, i) => {
     const m = Math.pow(1.6, i);
@@ -16,29 +17,29 @@ function buildingLevelConfig(baseO2, baseWater, baseIron, baseHe3, baseTime) {
 }
 
 export const BUILDING_CONFIG = {
-  SILO:             buildingLevelConfig(50,  30,  100, 0,   60),
-  BUNKER:           buildingLevelConfig(30,  20,  150, 0,   90),
-  RESEARCH_LAB:     buildingLevelConfig(100, 50,  200, 10,  120),
-  RADAR:            buildingLevelConfig(80,  40,  120, 5,   90),
-  WAR_ROOM:         buildingLevelConfig(60,  80,  200, 20,  120),
-  CONSTRUCTION_YARD:buildingLevelConfig(100, 60,  300, 10,  180),
-  ALLIANCE:         buildingLevelConfig(50,  50,  100, 10,  60),
-  TRADE_POD:        buildingLevelConfig(40,  40,  80,  20,  90),
+  SILO:             buildingLevelConfig(160,   96,  160, 16,  240),
+  BUNKER:           buildingLevelConfig( 96,   64,  240, 16,  360),
+  RESEARCH_LAB:     buildingLevelConfig(320,  160,  320, 32,  480),
+  RADAR:            buildingLevelConfig(256,  128,  192, 16,  360),
+  WAR_ROOM:         buildingLevelConfig(192,  256,  320, 64,  480),
+  CONSTRUCTION_YARD:buildingLevelConfig(320,  192,  480, 32,  720),
+  ALLIANCE:         buildingLevelConfig(160,  160,  160, 32,  240),
+  TRADE_POD:        buildingLevelConfig(128,  128,  128, 64,  360),
 };
 
-// Silo: max resources stored per level (level 0 = 1000, +500/level)
+// Silo: max resources stored per level (level 0 base = 1500, +500/level)
 export function siloCapacity(level) {
-  return 1000 + level * 500;
+  return 1500 + level * 500;
 }
 
-// Bunker: % of resources protected from looting (level * 5, max 100)
+// Bunker: % of resources protected from looting — max 40% at level 20
 export function bunkerProtection(level) {
-  return Math.min(level * 5, 100);
+  return Math.min(level * 2, 40);
 }
 
-// Radar: visibility radius in km
+// Radar: visibility radius in km — starts at 25km at level 1
 export function radarRange(level) {
-  return 10 + level * 5;
+  return 20 + level * 5;
 }
 
 // Construction Yard: % time reduction (level * 1, max 20)
@@ -58,21 +59,25 @@ export const MINE_SLOTS = {
   HELIUM3: 6,
 };
 
-// Base generation rate per mine level per minute
-export const MINE_BASE_RATE_PER_MIN = {
-  OXYGEN:  2.0,
-  WATER:   1.5,
-  IRON:    1.0,
-  HELIUM3: 0.5,
+// Flat production rate per mine per level per minute
+// Formula: total_rate = MINE_RATE_PER_LEVEL[type] * level * numMines
+// All resource types scale identically — each upgrade adds this fixed amount
+export const MINE_RATE_PER_LEVEL = {
+  OXYGEN:  7.5,
+  WATER:   7.5,
+  IRON:    7.5,
+  HELIUM3: 7.5,
 };
 
-// Mine generation rate in units/min for a given level
+// Mine generation rate in units/min for a given level (flat per level)
 export function mineRate(resourceType, level) {
   if (level === 0) return 0;
-  return MINE_BASE_RATE_PER_MIN[resourceType] * level;
+  return MINE_RATE_PER_LEVEL[resourceType] * level;
 }
 
 // Mine upgrade cost per level [level 1 .. 20]
+// ALL mines require all 4 resources.
+// The resource a mine produces costs ~50% less for that mine (self-resource discount).
 function mineLevelConfig(baseO2, baseWater, baseIron, baseHe3, baseTime) {
   return Array.from({ length: 20 }, (_, i) => {
     const m = Math.pow(1.5, i);
@@ -87,62 +92,73 @@ function mineLevelConfig(baseO2, baseWater, baseIron, baseHe3, baseTime) {
 }
 
 export const MINE_CONFIG = {
-  OXYGEN:  mineLevelConfig(20, 10, 30, 0,  30),
-  WATER:   mineLevelConfig(10, 20, 25, 0,  30),
-  IRON:    mineLevelConfig(15, 10, 40, 0,  30),
-  HELIUM3: mineLevelConfig(30, 20, 50, 10, 60),
+  OXYGEN:  mineLevelConfig( 32,  64,  96, 32, 120),
+  WATER:   mineLevelConfig( 64,  32,  80, 32, 120),
+  IRON:    mineLevelConfig( 96,  64,  64, 32, 120),
+  HELIUM3: mineLevelConfig(192, 128, 160, 32, 240),
+};
+
+// ─── Helium upkeep per unit per minute ────────────────────────────────────────
+// Units consume helium passively. Net helium = production - total upkeep.
+// If net < 0: stored helium drains; if stored = 0: units begin dying.
+export const HELIUM_UPKEEP = {
+  MOONBUGGY: 0.5,
+  GUNSHIP:   1.0,
+  TANK:      2.0,
+  HARVESTER: 0.5,
+  DRONE:     0.5,
+  TITAN:     50.0,
 };
 
 // ─── Unit stats ───────────────────────────────────────────────────────────────
 export const UNIT_STATS = {
   MOONBUGGY: {
-    attack:       5,
-    defense:      3,
-    carryCapacity:100,
-    speed:        80,   // km/h
-    buildTime:    30,   // seconds per unit
-    cost: { oxygen: 20, water: 10, iron: 30, helium3: 0 },
+    attack:        25,
+    defense:       40,
+    carryCapacity: 30,
+    speed:         80,   // km/h
+    buildTime:     30,   // seconds per unit
+    cost: { oxygen: 200, water: 100, iron: 150, helium3: 180 },
   },
   GUNSHIP: {
-    attack:       15,
-    defense:      10,
-    carryCapacity:50,
-    speed:        120,
-    buildTime:    120,
-    cost: { oxygen: 10, water: 20, iron: 50, helium3: 10 },
+    attack:        120,
+    defense:       40,
+    carryCapacity: 80,
+    speed:         150,
+    buildTime:     120,
+    cost: { oxygen: 350, water: 300, iron: 230, helium3: 200 },
   },
   TANK: {
-    attack:       25,
-    defense:      40,
-    carryCapacity:200,
-    speed:        20,
-    buildTime:    300,
-    cost: { oxygen: 0, water: 10, iron: 100, helium3: 20 },
+    attack:        250,
+    defense:       250,
+    carryCapacity: 120,
+    speed:         120,
+    buildTime:     300,
+    cost: { oxygen: 450, water: 400, iron: 500, helium3: 300 },
   },
   HARVESTER: {
-    attack:       2,
-    defense:      5,
-    carryCapacity:1000,
-    speed:        40,
-    buildTime:    180,
-    cost: { oxygen: 10, water: 5, iron: 60, helium3: 0 },
+    attack:        10,
+    defense:       10,
+    carryCapacity: 300,
+    speed:         250,
+    buildTime:     180,
+    cost: { oxygen: 200, water: 250, iron: 350, helium3: 400 },
   },
   DRONE: {
-    attack:       8,
-    defense:      2,
-    carryCapacity:30,
-    speed:        100,
-    buildTime:    20,
-    cost: { oxygen: 5, water: 5, iron: 15, helium3: 5 },
+    attack:        100,
+    defense:       30,
+    carryCapacity: 20,
+    speed:         100,
+    buildTime:     20,
+    cost: { oxygen: 300, water: 250, iron: 220, helium3: 230 },
   },
   TITAN: {
-    attack:       200,
-    defense:      150,
-    carryCapacity:500,
-    speed:        30,
-    buildTime:    3600,
-    cost: { oxygen: 100, water: 100, iron: 500, helium3: 200 },
-    maxPerPlayer: 1,
+    attack:        5000,
+    defense:       5000,
+    carryCapacity: 1000,
+    speed:         60,
+    buildTime:     3600,
+    cost: { oxygen: 6000, water: 5000, iron: 7000, helium3: 4000 },
   },
 };
 
@@ -157,4 +173,4 @@ export const TRADE_POD_SPEED = 100; // km/h
 export const MAP_BOUNDS = { min: -100, max: 100 }; // km (200x200 grid)
 
 // New base placement: random distance from nearest existing base
-export const BASE_PLACEMENT = { minKm: 5, maxKm: 30 };
+export const BASE_PLACEMENT = { minKm: 15, maxKm: 35 };

@@ -40,6 +40,7 @@ router.get('/population', async (req, res) => {
 });
 
 // GET /api/leaderboard/medals?type=attacker|defender|raider
+// Shows only the CURRENT (not-yet-awarded) week's points so the board resets after medals are given.
 router.get('/medals', async (req, res) => {
   try {
     const { type = 'attacker' } = req.query;
@@ -54,8 +55,22 @@ router.get('/medals', async (req, res) => {
     const season = await prisma.season.findFirst({ where: { isActive: true } });
     if (!season) return res.json({ entries: [] });
 
+    // Find the current (not-yet-awarded) week — earliest week whose endDate is in the future
+    let currentWeekNumber = null;
+    try {
+      const currentWeek = await prisma.weekConfig.findFirst({
+        where: { seasonId: season.id, endDate: { gt: new Date() } },
+        orderBy: { weekNumber: 'asc' },
+      });
+      if (currentWeek) currentWeekNumber = currentWeek.weekNumber;
+    } catch { /* WeekConfig table may not exist */ }
+
     const medals = await prisma.medal.findMany({
-      where: { seasonId: season.id },
+      where: {
+        seasonId: season.id,
+        // Only count current week; if no week configured show season totals
+        ...(currentWeekNumber !== null ? { weekNumber: currentWeekNumber } : {}),
+      },
       include: { user: { select: { id: true, username: true } } },
     });
 
@@ -103,6 +118,137 @@ router.get('/my-rank', requireAuth, async (req, res) => {
       raiderMedals:     totalRaider,
     });
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/leaderboard/user/:userId — public player profile
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return res.json({ user: null });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, createdAt: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const medals = await prisma.medal.findMany({
+      where: { userId, seasonId: season.id },
+    });
+
+    // Count weeks where they were top (rewardGiven = true for those)
+    const attackerMedals = medals.filter((m) => m.rewardGiven && m.attackerPoints > 0).length;
+    const defenderMedals = medals.filter((m) => m.rewardGiven && m.defenderPoints > 0).length;
+    const raiderMedals   = medals.filter((m) => m.rewardGiven && m.raiderPoints > 0).length;
+    const victoryMedals  = medals.filter((m) => m.weekNumber === 0).length;
+
+    // Lifetime medal counts across ALL seasons
+    const allMedals = await prisma.medal.findMany({ where: { userId } });
+    const lifetimeAttackerMedals = allMedals.filter((m) => m.rewardGiven && m.attackerPoints > 0).length;
+    const lifetimeDefenderMedals = allMedals.filter((m) => m.rewardGiven && m.defenderPoints > 0).length;
+    const lifetimeRaiderMedals   = allMedals.filter((m) => m.rewardGiven && m.raiderPoints > 0).length;
+    const lifetimeVictoryMedals  = allMedals.filter((m) => m.weekNumber === 0).length;
+
+    const totalAttacker = medals.reduce((s, m) => s + m.attackerPoints, 0);
+    const totalDefender = medals.reduce((s, m) => s + m.defenderPoints, 0);
+    const totalRaider   = medals.reduce((s, m) => s + m.raiderPoints, 0);
+
+    // Population rank
+    const bases = await prisma.base.findMany({
+      where: { seasonId: season.id, isAdmin: false },
+      include: { user: { select: { id: true } } },
+      orderBy: { populationPoints: 'desc' },
+    });
+    const byUser = {};
+    for (const b of bases) {
+      byUser[b.userId] = (byUser[b.userId] ?? 0) + b.populationPoints;
+    }
+    const sorted = Object.entries(byUser).sort((a, b) => b[1] - a[1]);
+    const popRank = sorted.findIndex(([uid]) => uid === userId) + 1;
+
+    const alliance = await prisma.allianceMember.findFirst({
+      where: { userId },
+      include: { alliance: { select: { name: true } } },
+    });
+
+    const baseCount = await prisma.base.count({
+      where: { userId, seasonId: season.id, isAdmin: false },
+    });
+
+    res.json({
+      user: { id: user.id, username: user.username, createdAt: user.createdAt },
+      stats: {
+        populationRank:  popRank || null,
+        populationPoints: byUser[userId] ?? 0,
+        attackerPoints:  totalAttacker,
+        defenderPoints:  totalDefender,
+        raiderPoints:    totalRaider,
+        attackerMedals,
+        defenderMedals,
+        raiderMedals,
+        victoryMedals,
+        lifetimeAttackerMedals,
+        lifetimeDefenderMedals,
+        lifetimeRaiderMedals,
+        lifetimeVictoryMedals,
+        baseCount,
+      },
+      alliance: alliance?.alliance?.name ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/leaderboard/alliances — all alliances ranked by combined member contribution
+router.get('/alliances', async (req, res) => {
+  try {
+    const season = await prisma.season.findFirst({ where: { isActive: true } });
+    if (!season) return res.json({ entries: [] });
+
+    const alliances = await prisma.alliance.findMany({
+      where: { seasonId: season.id },
+      include: {
+        members: { include: { user: { select: { id: true, username: true } } } },
+      },
+    });
+
+    const entries = await Promise.all(alliances.map(async (a) => {
+      const memberIds = a.members.map((m) => m.userId);
+
+      // Population points
+      const bases = await prisma.base.findMany({
+        where: { userId: { in: memberIds }, seasonId: season.id, isAdmin: false },
+      });
+      const popPoints = bases.reduce((s, b) => s + b.populationPoints, 0);
+
+      // Medal points
+      const medals = await prisma.medal.findMany({
+        where: { userId: { in: memberIds }, seasonId: season.id },
+      });
+      const atkPts = medals.reduce((s, m) => s + m.attackerPoints, 0);
+      const defPts = medals.reduce((s, m) => s + m.defenderPoints, 0);
+      const raidPts = medals.reduce((s, m) => s + m.raiderPoints, 0);
+
+      return {
+        id:          a.id,
+        name:        a.name,
+        memberCount: memberIds.length,
+        score:       popPoints + atkPts + defPts + raidPts,
+        popPoints,
+        atkPts,
+        defPts,
+        raidPts,
+      };
+    }));
+
+    entries.sort((a, b) => b.score - a.score);
+    res.json({ entries: entries.map((e, i) => ({ rank: i + 1, ...e })) });
+  } catch (err) {
+    console.error('[leaderboard/alliances]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

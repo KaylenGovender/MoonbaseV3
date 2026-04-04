@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
 import { deductResources, addResources } from '../services/resourceEngine.js';
-import { UNIT_STATS, constructionYardReduction } from '../config/gameConfig.js';
+import { getUnitStatsMap, constructionYardReduction } from '../services/gameConfigService.js';
 import { distanceBetween as calcDistance } from '../services/placementService.js';
+import { getConfig } from '../services/serverConfig.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ router.get('/:baseId', requireAuth, async (req, res) => {
       where: { baseId, completed: false },
       orderBy: { startedAt: 'asc' },
     });
-    res.json({ unitStocks, buildQueue, unitStats: UNIT_STATS });
+    res.json({ unitStocks, buildQueue, unitStats: getUnitStatsMap() });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -48,7 +49,7 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'War Room not built' });
     }
 
-    const stats = UNIT_STATS[unitType];
+    const stats = getUnitStatsMap()[unitType];
     if (!stats) return res.status(400).json({ error: 'Invalid unit type' });
 
     // Titan: max 1 per player
@@ -88,11 +89,12 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
     const ok = await deductResources(baseId, totalCost);
     if (!ok) return res.status(400).json({ error: 'Insufficient resources' });
 
-    // Apply Construction Yard reduction
+    // Apply Construction Yard reduction (use effective level)
     const cyBuilding = await prisma.building.findUnique({
       where: { baseId_type: { baseId, type: 'CONSTRUCTION_YARD' } },
     });
-    const reduction = constructionYardReduction(cyBuilding?.level ?? 0) / 100;
+    const cyEffectiveLevel = cyBuilding?.upgradeEndsAt ? cyBuilding.level - 1 : cyBuilding?.level ?? 0;
+    const reduction = constructionYardReduction(cyEffectiveLevel) / 100;
     const timePerUnit = Math.round(stats.buildTime * (1 - reduction));
 
     // Queue after last pending job
@@ -138,25 +140,55 @@ router.post('/:baseId/attack', requireAuth, async (req, res) => {
     const defenderBase = await prisma.base.findUnique({ where: { id: targetBaseId } });
     if (!defenderBase) return res.status(404).json({ error: 'Target not found' });
 
-    // Validate and deduct units
-    for (const [type, qty] of Object.entries(units)) {
-      if (!qty || qty <= 0) continue;
-      const stock = await prisma.unitStock.findUnique({
-        where: { baseId_type: { baseId, type } },
-      });
-      if (!stock || stock.count < qty) {
-        return res.status(400).json({ error: `Insufficient ${type} units` });
+    // Prevent attacking own bases (any base owned by same user)
+    if (defenderBase.userId === req.user.id) {
+      return res.status(400).json({ error: 'Cannot attack your own base' });
+    }
+
+    // Block attacks between alliance members
+    const attackerAlliance = await prisma.allianceMember.findFirst({
+      where: { userId: req.user.id },
+      include: { alliance: { include: { members: { select: { userId: true } } } } },
+    });
+    if (attackerAlliance) {
+      const allyUserIds = attackerAlliance.alliance.members.map((m) => m.userId);
+      if (allyUserIds.includes(defenderBase.userId)) {
+        return res.status(400).json({ error: 'Cannot attack alliance members. Use trade pods or reinforcements instead.' });
       }
     }
 
-    // Deduct units from stock
-    for (const [type, qty] of Object.entries(units)) {
-      if (!qty || qty <= 0) continue;
-      await prisma.unitStock.update({
-        where: { baseId_type: { baseId, type } },
-        data: { count: { decrement: qty } },
-      });
+    // New-player protection: cannot be attacked within 24h of account creation
+    const defenderUser = await prisma.user.findUnique({
+      where: { id: defenderBase.userId },
+      select: { createdAt: true },
+    });
+    const protectionEnabled = (await getConfig('protection_enabled', 'true')) === 'true';
+    if (protectionEnabled && defenderUser) {
+      const protectedUntil = new Date(defenderUser.createdAt.getTime() + 24 * 60 * 60 * 1000);
+      if (Date.now() < protectedUntil.getTime()) {
+        return res.status(400).json({
+          error: 'This player is under new-player protection.',
+          protectedUntil: protectedUntil.toISOString(),
+        });
+      }
     }
+
+    // Validate and deduct units atomically to prevent race conditions
+    await prisma.$transaction(async (tx) => {
+      for (const [type, qty] of Object.entries(units)) {
+        if (!qty || qty <= 0) continue;
+        const stock = await tx.unitStock.findUnique({
+          where: { baseId_type: { baseId, type } },
+        });
+        if (!stock || stock.count < qty) {
+          throw new Error(`Insufficient ${type} units`);
+        }
+        await tx.unitStock.update({
+          where: { baseId_type: { baseId, type } },
+          data: { count: { decrement: qty } },
+        });
+      }
+    });
 
     // Calculate travel time (distance / slowest unit speed)
     const dist = calcDistance(
@@ -165,8 +197,8 @@ router.post('/:baseId/attack', requireAuth, async (req, res) => {
     );
     let minSpeed = Infinity;
     for (const [type, qty] of Object.entries(units)) {
-      if (qty > 0 && UNIT_STATS[type]) {
-        minSpeed = Math.min(minSpeed, UNIT_STATS[type].speed);
+      if (qty > 0 && getUnitStatsMap()[type]) {
+        minSpeed = Math.min(minSpeed, getUnitStatsMap()[type].speed);
       }
     }
     if (minSpeed === Infinity) minSpeed = 80;
@@ -211,7 +243,7 @@ router.delete('/:baseId/queue/:jobId', requireAuth, async (req, res) => {
     }
 
     // Refund resources
-    const stats = UNIT_STATS[job.unitType];
+    const stats = getUnitStatsMap()[job.unitType];
     if (stats) {
       await addResources(baseId, {
         oxygen:  stats.cost.oxygen  * job.quantity,
@@ -230,3 +262,4 @@ router.delete('/:baseId/queue/:jobId', requireAuth, async (req, res) => {
 });
 
 export default router;
+

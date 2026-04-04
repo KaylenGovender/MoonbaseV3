@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
-import { radarRange } from '../config/gameConfig.js';
+import { radarRange } from '../services/gameConfigService.js';
+import { getConfig } from '../services/serverConfig.js';
 
 const router = Router();
 
@@ -22,22 +23,33 @@ router.get('/bases', requireAuth, async (req, res) => {
       },
     });
     const maxRadarLevel = radarBuildings.reduce(
-      (max, b) => Math.max(max, b.level),
+      (max, b) => Math.max(max, b.upgradeEndsAt ? b.level - 1 : b.level),
       0,
     );
     const visRadius = radarRange(maxRadarLevel);
+
+    // Get alliance member userIds for the current player
+    const myMembership = await prisma.allianceMember.findFirst({
+      where: { userId: req.user.id },
+      include: { alliance: { include: { members: true } } },
+    });
+    const allianceMemberUserIds = new Set(
+      myMembership?.alliance?.members?.map((m) => m.userId) ?? [],
+    );
 
     // All bases in season
     const allBases = await prisma.base.findMany({
       where: { seasonId: season.id },
       include: {
-        user: { select: { id: true, username: true } },
+        user: { select: { id: true, username: true, createdAt: true } },
       },
     });
 
-    // Filter: own bases always visible + bases within radar range
+    // Filter: own bases always visible + non-admin bases within radar range
+    // Admin base (Command HQ) is hidden from all non-admin players
     const visible = allBases.filter((b) => {
-      if (b.userId === req.user.id || b.isAdmin) return true;
+      if (b.isAdmin && !req.user.isAdmin) return false; // hide admin base
+      if (b.userId === req.user.id) return true;
       return playerBases.some((pb) => {
         const dx = pb.x - b.x;
         const dy = pb.y - b.y;
@@ -76,21 +88,33 @@ router.get('/bases', requireAuth, async (req, res) => {
       },
     });
 
+    const PROTECTION_MS = 24 * 60 * 60 * 1000;
+    const protectionEnabled = (await getConfig('protection_enabled', 'true')) === 'true';
     res.json({
-      bases: visible.map((b) => ({
-        id:       b.id,
-        name:     b.name,
-        x:        b.x,
-        y:        b.y,
-        initials: b.user.username.slice(0, 2).toUpperCase(),
-        isOwn:    b.userId === req.user.id,
-        isAdmin:  b.isAdmin,
-        userId:   b.userId,
-        username: b.user.username,
-      })),
+      bases: visible.map((b) => {
+        const protectionEnd = new Date(b.user.createdAt.getTime() + PROTECTION_MS);
+        const isProtected   = protectionEnabled && b.userId !== req.user.id && !b.isAdmin && Date.now() < protectionEnd.getTime();
+        return {
+          id:       b.id,
+          name:     b.name,
+          x:        b.x,
+          y:        b.y,
+          initials: b.user.username.slice(0, 2).toUpperCase(),
+          isOwn:    b.userId === req.user.id,
+          isAdmin:  b.isAdmin,
+          isAlly:   !b.isAdmin && b.userId !== req.user.id && allianceMemberUserIds.has(b.userId),
+          userId:   b.userId,
+          username: b.user.username,
+          isProtected,
+          protectedUntil: isProtected ? protectionEnd.toISOString() : null,
+        };
+      }),
       playerBaseIds: playerBases.map((b) => b.id),
       visRadius,
-      playerBases: playerBases.map((b) => ({ id: b.id, x: b.x, y: b.y })),
+      playerBases: playerBases.map((b) => ({
+        id: b.id, x: b.x, y: b.y,
+        radarLevel: radarBuildings.find((rb) => rb.baseId === b.id)?.level ?? 1,
+      })),
       attacks: activeAttacks.map((a) => ({
         id:              a.id,
         attackerBaseId:  a.attackerBaseId,

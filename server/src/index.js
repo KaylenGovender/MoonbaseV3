@@ -3,6 +3,8 @@ import http from 'http';
 import app from './app.js';
 import { createSocketServer } from './socket/index.js';
 import { startTickEngine } from './services/tickEngine.js';
+import { startMedalScheduler } from './services/medalService.js';
+import { initGameConfig } from './services/gameConfigService.js';
 import { prisma } from './prisma/client.js';
 
 const PORT = process.env.PORT || 3001;
@@ -10,10 +12,13 @@ const PORT = process.env.PORT || 3001;
 const httpServer = http.createServer(app);
 const io = createSocketServer(httpServer);
 
-startTickEngine(io);
-
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Moonbase server listening on port ${PORT}`);
+// Load dynamic game config overrides before starting game loops
+initGameConfig().then(() => {
+  startTickEngine(io);
+  startMedalScheduler(io);
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Moonbase server listening on port ${PORT}`);
+  });
 });
 
 async function shutdown() {

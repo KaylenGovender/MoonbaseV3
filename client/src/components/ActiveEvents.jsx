@@ -16,9 +16,17 @@ export default function ActiveEvents({ base }) {
   const tradePodsOut    = base.tradePodsOut ?? [];
   const tradePodsIn     = base.tradePodsIn ?? [];
 
+  // Mine upgrades in progress
+  const upgradingMines = (base.mines ?? []).filter((m) => m.upgradeEndsAt);
+  // Building upgrades in progress
+  const upgradingBuildings = (base.buildings ?? []).filter((b) => b.upgradeEndsAt);
+
+  const RESOURCE_NAMES = { OXYGEN: 'Oxygen', WATER: 'Water', IRON: 'Iron', HELIUM3: 'Helium-3' };
+
   const hasEvents =
     incomingAttacks.length || outgoingAttacks.length ||
-    buildQueues.length || tradePodsOut.length || tradePodsIn.length;
+    buildQueues.length || tradePodsOut.length || tradePodsIn.length ||
+    upgradingMines.length || upgradingBuildings.length;
 
   if (!hasEvents) return null;
 
@@ -49,6 +57,28 @@ export default function ActiveEvents({ base }) {
               : `Attacking ${attack.defenderBase?.name ?? 'Unknown'}`
           }
           time={formatEta(attack.status === 'RETURNING' ? attack.returnTime : attack.arrivalTime)}
+        />
+      ))}
+
+      {upgradingBuildings.map((b) => (
+        <EventRow
+          key={b.id}
+          icon="🏗️"
+          color="text-purple-400"
+          bg="bg-purple-900/20 border-purple-800/40"
+          label={`${formatBuildingName(b.type)} upgrading → L${b.level}`}
+          time={formatCountdown(b.upgradeEndsAt)}
+        />
+      ))}
+
+      {upgradingMines.map((m) => (
+        <EventRow
+          key={m.id}
+          icon="⛏️"
+          color="text-yellow-400"
+          bg="bg-yellow-900/20 border-yellow-800/40"
+          label={`${RESOURCE_NAMES[m.resourceType] ?? m.resourceType} Mine #${m.slot} upgrading → L${m.level}`}
+          time={formatCountdown(m.upgradeEndsAt)}
         />
       ))}
 
@@ -102,4 +132,8 @@ function EventRow({ icon, color, bg, label, time }) {
 
 function formatUnitName(type) {
   return type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, ' ');
+}
+
+function formatBuildingName(type) {
+  return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }

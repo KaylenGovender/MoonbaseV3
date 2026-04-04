@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore.js';
 import { useBaseStore } from '../store/baseStore.js';
+import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber, formatCountdown } from '../utils/format.js';
 import { UNIT_META, HELIUM_UPKEEP } from '../utils/gameConstants.js';
@@ -11,6 +12,7 @@ export default function WarRoom() {
   const activeBaseId = useAuthStore((s) => s.activeBaseId);
   const baseResources = useBaseStore((s) => s.resources); // live resource values from base store
   const liveUnitStocks = useBaseStore((s) => s.base?.unitStocks); // real-time from WebSocket
+  const { socket } = useSocketStore();
   const [data, setData]     = useState(null);
   const [qty,  setQty]      = useState({});
   const [error, setError]   = useState('');
@@ -44,6 +46,23 @@ export default function WarRoom() {
     load();
     loadReinforcements();
   }, [activeBaseId]);
+
+  // Auto-refresh build queue when units complete or reinforcements change
+  useEffect(() => {
+    if (!socket) return;
+    const refresh = ({ baseId }) => {
+      if (baseId === activeBaseId) { load(); loadReinforcements(); }
+    };
+    const refreshSimple = () => { load(); loadReinforcements(); };
+    socket.on('unit:update', refresh);
+    socket.on('reinforcement:arrived', refreshSimple);
+    socket.on('reinforcement:returned', refreshSimple);
+    return () => {
+      socket.off('unit:update', refresh);
+      socket.off('reinforcement:arrived', refreshSimple);
+      socket.off('reinforcement:returned', refreshSimple);
+    };
+  }, [socket, activeBaseId]);
 
   async function recallReinforcement(id) {
     try {

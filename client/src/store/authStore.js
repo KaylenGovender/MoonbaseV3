@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api } from '../utils/api.js';
+import { UNIT_META } from '../utils/gameConstants.js';
 
 export const useAuthStore = create(
   persist(
@@ -8,12 +10,42 @@ export const useAuthStore = create(
       user:   null,
       bases:  [],
       activeBaseId: null,
+      unitSpeeds: {}, // populated by loadGameConfig on startup
 
       setAuth: ({ token, user, bases }) => {
         set({ token, user, bases, activeBaseId: bases?.[0]?.id ?? null });
       },
 
       setActiveBase: (baseId) => set({ activeBaseId: baseId }),
+
+      refreshBases: async () => {
+        try {
+          const { bases } = await api.get('/auth/bases');
+          set((s) => ({
+            bases,
+            activeBaseId: bases.some((b) => b.id === s.activeBaseId)
+              ? s.activeBaseId
+              : bases[0]?.id ?? null,
+          }));
+        } catch {}
+      },
+
+      loadGameConfig: async () => {
+        try {
+          const cfg = await api.get('/config/game');
+          const stats = cfg?.unitStats ?? {};
+          const speeds = Object.fromEntries(
+            Object.entries(stats).map(([k, v]) => [k, v.speed ?? UNIT_META[k]?.speed ?? 10])
+          );
+          set({ unitSpeeds: speeds });
+        } catch {
+          // Fall back to hardcoded defaults on failure
+          const speeds = Object.fromEntries(
+            Object.entries(UNIT_META).map(([k, v]) => [k, v.speed ?? 10])
+          );
+          set({ unitSpeeds: speeds });
+        }
+      },
 
       logout: () => set({ token: null, user: null, bases: [], activeBaseId: null }),
 
@@ -26,7 +58,9 @@ export const useAuthStore = create(
         user:  state.user,
         bases: state.bases,
         activeBaseId: state.activeBaseId,
+        // unitSpeeds intentionally NOT persisted — always fetch fresh on load
       }),
     },
   ),
 );
+

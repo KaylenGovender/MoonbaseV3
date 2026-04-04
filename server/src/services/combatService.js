@@ -1,10 +1,11 @@
 import { prisma } from '../prisma/client.js';
-import { UNIT_STATS, bunkerProtection } from '../config/gameConfig.js';
+import { getUnitStatsMap, getBunkerProtection } from '../services/gameConfigService.js';
 import { addResources } from './resourceEngine.js';
 
 /**
  * Resolve a battle when an attack arrives at the defender base.
- * Returns the BattleReport.
+ * Returns the BattleReport plus survivingAttackerUnits and attackerUnitsLost
+ * so tickEngine can correctly return units and apply losses on COMPLETED.
  */
 export async function resolveBattle(attack) {
   const attackerBase = await prisma.base.findUnique({
@@ -30,13 +31,13 @@ export async function resolveBattle(attack) {
   let totalDefense = 0;
 
   for (const [type, count] of Object.entries(attackingUnits)) {
-    if (UNIT_STATS[type] && count > 0) {
-      totalAttack += UNIT_STATS[type].attack * count;
+    if (getUnitStatsMap()[type] && count > 0) {
+      totalAttack += getUnitStatsMap()[type].attack * count;
     }
   }
   for (const [type, count] of Object.entries(defendingUnits)) {
-    if (UNIT_STATS[type] && count > 0) {
-      totalDefense += UNIT_STATS[type].defense * count;
+    if (getUnitStatsMap()[type] && count > 0) {
+      totalDefense += getUnitStatsMap()[type].defense * count;
     }
   }
 
@@ -63,6 +64,13 @@ export async function resolveBattle(attack) {
     defenderUnitsLost[type] = Math.min(lost, count);
   }
 
+  // ── Surviving attacker units (returned home on COMPLETED) ────────────────
+  const survivingAttackerUnits = {};
+  for (const [type, count] of Object.entries(attackingUnits)) {
+    const surviving = count - (attackerUnitsLost[type] || 0);
+    if (surviving > 0) survivingAttackerUnits[type] = surviving;
+  }
+
   // ── Resource looting (attacker wins only) ────────────────────────────────
   const resourcesLooted = { oxygen: 0, water: 0, iron: 0, helium3: 0 };
   let attackerPointsChange = 0;
@@ -75,14 +83,14 @@ export async function resolveBattle(attack) {
     const bunkerBuilding = await prisma.building.findUnique({
       where: { baseId_type: { baseId: attack.defenderBaseId, type: 'BUNKER' } },
     });
-    const protection = bunkerProtection(bunkerBuilding?.level ?? 0) / 100;
+    const bunkerEffLevel = bunkerBuilding?.upgradeEndsAt ? bunkerBuilding.level - 1 : bunkerBuilding?.level ?? 0;
+    const protection = getBunkerProtection(bunkerEffLevel) / 100;
 
-    // Total harvester carry capacity in attacking fleet
+    // Carry capacity based on surviving attacking units
     let maxCarry = 0;
-    for (const [type, count] of Object.entries(attackingUnits)) {
-      if (UNIT_STATS[type]) {
-        const surviving = count - (attackerUnitsLost[type] || 0);
-        maxCarry += UNIT_STATS[type].carryCapacity * surviving;
+    for (const [type, surviving] of Object.entries(survivingAttackerUnits)) {
+      if (getUnitStatsMap()[type]) {
+        maxCarry += getUnitStatsMap()[type].carryCapacity * surviving;
       }
     }
 
@@ -124,38 +132,24 @@ export async function resolveBattle(attack) {
     defenderPointsChange = 8;
   }
 
-  // ── Apply unit losses ─────────────────────────────────────────────────────
-  for (const [type, lost] of Object.entries(attackerUnitsLost)) {
-    await prisma.unitStock.updateMany({
-      where: { baseId: attack.attackerBaseId, type },
-      data: { count: { decrement: lost } },
-    });
-  }
+  // ── Apply unit losses to DEFENDER only here ───────────────────────────────
+  // Attacker losses + unit returns are handled in tickEngine on COMPLETED
   for (const [type, lost] of Object.entries(defenderUnitsLost)) {
     await prisma.unitStock.updateMany({
       where: { baseId: attack.defenderBaseId, type },
       data: { count: { decrement: lost } },
     });
   }
-
-  // Ensure no negative unit counts
-  await prisma.unitStock.updateMany({
-    where: { baseId: attack.attackerBaseId, count: { lt: 0 } },
-    data: { count: 0 },
-  });
+  // Ensure no negative defender unit counts
   await prisma.unitStock.updateMany({
     where: { baseId: attack.defenderBaseId, count: { lt: 0 } },
     data: { count: 0 },
   });
 
-  // ── Add looted resources to attacker (on return) ──────────────────────────
-  // Resources will be added when the units return (returnTime)
-  // Store on the battle report for now and credit on COMPLETED status
-
   // ── Update medals ─────────────────────────────────────────────────────────
   const season = await prisma.season.findFirst({ where: { isActive: true } });
   if (season) {
-    const week = getWeekNumber(new Date());
+    const week = await getCurrentSeasonWeekNumber(season.id);
     const totalLooted =
       resourcesLooted.oxygen + resourcesLooted.water +
       resourcesLooted.iron   + resourcesLooted.helium3;
@@ -163,11 +157,12 @@ export async function resolveBattle(attack) {
     // Attacker medals
     await upsertMedal(attackerBase.userId, season.id, week, {
       attackerPoints: attackerWon ? attackerPointsChange : 0,
-      raiderPoints:   Math.floor(totalLooted / 100),
+      raiderPoints:   Math.floor(totalLooted / 50),
     });
-    // Defender medals
+    // Defender medals — defender points for winning, no raider penalty
     await upsertMedal(defenderBase.userId, season.id, week, {
       defenderPoints: !attackerWon ? defenderPointsChange : 0,
+      raiderPoints:   0,
     });
   }
 
@@ -186,7 +181,30 @@ export async function resolveBattle(attack) {
     },
   });
 
-  return { report, attackerWon, resourcesLooted };
+  return { report, attackerWon, resourcesLooted, survivingAttackerUnits, attackerUnitsLost };
+}
+
+/**
+ * Get the current season-relative week number from WeekConfig.
+ * Falls back to ISO week number if WeekConfig table isn't populated.
+ */
+async function getCurrentSeasonWeekNumber(seasonId) {
+  try {
+    const now = new Date();
+    // Current week = earliest WeekConfig whose endDate is still in the future
+    const current = await prisma.weekConfig.findFirst({
+      where: { seasonId, endDate: { gt: now } },
+      orderBy: { weekNumber: 'asc' },
+    });
+    if (current) return current.weekNumber;
+    // All weeks have ended — use the last one
+    const last = await prisma.weekConfig.findFirst({
+      where: { seasonId },
+      orderBy: { weekNumber: 'desc' },
+    });
+    if (last) return last.weekNumber;
+  } catch {}
+  return getWeekNumber(new Date()); // fallback
 }
 
 async function upsertMedal(userId, seasonId, weekNumber, increments) {
@@ -222,3 +240,6 @@ function getWeekNumber(date) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
+
+export { getWeekNumber };
+

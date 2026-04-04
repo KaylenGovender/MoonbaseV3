@@ -20,6 +20,7 @@ model Season {
   alliances            Alliance[]
   medals               Medal[]
   leaderboardSnapshots LeaderboardSnapshot[]
+  weekConfigs          WeekConfig[]
 }
 
 // ─── User ─────────────────────────────────────────────────────────────────────
@@ -63,8 +64,10 @@ model Base {
   buildQueues     BuildQueue[]
   attacksLaunched Attack[]        @relation("attacker")
   attacksReceived Attack[]        @relation("defender")
-  tradePodsOut    TradePod[]      @relation("fromBase")
-  tradePodsIn     TradePod[]      @relation("toBase")
+  tradePodsOut      TradePod[]      @relation("fromBase")
+  tradePodsIn       TradePod[]      @relation("toBase")
+  reinforcementsOut Reinforcement[] @relation("reinforcementFrom")
+  reinforcementsIn  Reinforcement[] @relation("reinforcementTo")
 }
 
 // ─── Building ─────────────────────────────────────────────────────────────────
@@ -217,6 +220,7 @@ model Alliance {
 model AllianceMember {
   allianceId String
   userId     String
+  role       String   @default("MEMBER")
   joinedAt   DateTime @default(now())
 
   alliance Alliance @relation(fields: [allianceId], references: [id])
@@ -297,6 +301,40 @@ model Medal {
   season Season @relation(fields: [seasonId], references: [id])
 
   @@unique([userId, seasonId, weekNumber])
+}
+
+// ─── Reinforcement ────────────────────────────────────────────────────────────
+model Reinforcement {
+  id          String    @id
+  fromBaseId  String
+  toBaseId    String
+  units       Json
+  sentAt      DateTime  @default(now())
+  arrivalTime DateTime
+  returnTime  DateTime?
+  status      String    @default("IN_TRANSIT")
+
+  fromBase Base @relation("reinforcementFrom", fields: [fromBaseId], references: [id])
+  toBase   Base @relation("reinforcementTo",   fields: [toBaseId],   references: [id])
+}
+
+// ─── Week Config ──────────────────────────────────────────────────────────────
+model WeekConfig {
+  id         String   @id @default(cuid())
+  seasonId   String
+  weekNumber Int
+  endDate    DateTime
+  createdAt  DateTime @default(now())
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, weekNumber])
+}
+
+// ─── Server Config ────────────────────────────────────────────────────────────
+model ServerConfig {
+  key   String @id
+  value String
 }
 
 // ─── Leaderboard Snapshot ─────────────────────────────────────────────────────

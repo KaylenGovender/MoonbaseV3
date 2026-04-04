@@ -1,8 +1,6 @@
 export function formatNumber(n) {
   if (n === undefined || n === null) return '0';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K';
-  return Math.floor(n).toString();
+  return Math.round(n).toLocaleString();
 }
 
 export function formatCountdown(endsAt) {
@@ -29,8 +27,21 @@ export function formatEta(timestamp) {
   return `ETA ${s}s`;
 }
 
+// Returns first initial + last initial from username
+// e.g. "john_doe" → "JD", "Alice" → "AL", "CamelCase" → "CC"
 export function getInitials(username) {
-  return (username || '??').slice(0, 2).toUpperCase();
+  if (!username) return '??';
+  // Try splitting on space or underscore
+  const parts = username.split(/[\s_]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  // Try camelCase split
+  const camel = username.replace(/([A-Z])/g, ' $1').trim().split(/\s+/);
+  if (camel.length >= 2) {
+    return (camel[0][0] + camel[camel.length - 1][0]).toUpperCase();
+  }
+  return username.slice(0, 2).toUpperCase();
 }
 
 export function formatRate(rate) {

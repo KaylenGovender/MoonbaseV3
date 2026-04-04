@@ -151,12 +151,12 @@ export default function ResourceDetail() {
           <p className="section-title">{meta?.label} Mines ({mines.length})</p>
           <div className="grid grid-cols-2 gap-3">
             {mines.map((mine) => {
-              const nextLevel  = effLevel + 1;
-              const cost       = nextLevel <= 20 ? mineLevelCost(resourceType, nextLevel) : null;
               const isUpgrading = !!mine.upgradeEndsAt;
               const isMaxLevel  = mine.level >= 20;
               // Use effective level — during upgrade the DB stores target level already
               const effLevel    = isUpgrading ? mine.level - 1 : mine.level;
+              const nextLevel   = effLevel + 1;
+              const cost        = nextLevel <= 20 ? mineLevelCost(resourceType, nextLevel) : null;
               const currentRate = mineRate(resourceType, effLevel);
               const nextRate    = mineRate(resourceType, effLevel + 1);
               return (

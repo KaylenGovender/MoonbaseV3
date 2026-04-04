@@ -6,7 +6,7 @@ function kmToWorld(km, cs) {
   return ((km + 100) / MAP_KM) * cs;
 }
 
-export default function CanvasMap({ bases, attacks, tradePods, playerBases, visRadius, onBaseClick }) {
+export default function CanvasMap({ bases, attacks, tradePods, playerBases, visRadius, onBaseClick, allianceBaseIds, activeBaseId, availablePlots = [], onPlotClick, disableFog = false }) {
   const canvasRef = useRef(null);
   const stateRef  = useRef({
     offsetX: 0, offsetY: 0, scale: 1,
@@ -24,14 +24,14 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     return { wx: (sx - offsetX) / scale, wy: (sy - offsetY) / scale };
   }
 
-  // Find nearest base within 20 screen-pixel radius
-  function findBaseAt(screenX, screenY) {
+  // Find nearest base within 30 screen-pixel radius
+  function findBaseAt(screenX, screenY, hitPx = 30) {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const cs   = Math.min(canvas.width, canvas.height);
     const { scale } = stateRef.current;
     const { wx, wy } = screenToWorld(screenX, screenY);
-    const hitWorld = 20 / scale; // 20px in screen → world units
+    const hitWorld = hitPx / scale;
     let closest = null, closestDist = hitWorld;
     for (const b of (bases ?? [])) {
       const bx = kmToWorld(b.x, cs);
@@ -40,6 +40,23 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
       if (d < closestDist) { closestDist = d; closest = b; }
     }
     return closest;
+  }
+
+  // Find nearest available plot within touch radius (screen coords)
+  function findPlotAt(screenX, screenY) {
+    if (!availablePlots?.length || !onPlotClick) return null;
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const cs = Math.min(canvas.width, canvas.height);
+    const { offsetX, offsetY, scale } = stateRef.current;
+    for (const plot of availablePlots) {
+      const wx = kmToWorld(plot.x, cs);
+      const wy = kmToWorld(plot.y, cs);
+      const sx = wx * scale + offsetX;
+      const sy = wy * scale + offsetY;
+      if (Math.sqrt((screenX - sx) ** 2 + (screenY - sy) ** 2) < 44) return plot;
+    }
+    return null;
   }
 
   const draw = useCallback(() => {
@@ -59,18 +76,21 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // Map area border
-    ctx.strokeStyle = 'rgba(56,189,248,0.08)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, cs, cs);
-
-    // Grid lines
+    // Grid lines — draw across entire visible area to avoid hard world-boundary edge
     ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 10; i++) {
-      const p = (i / 10) * cs;
-      ctx.beginPath(); ctx.moveTo(p, 0);  ctx.lineTo(p, cs);  ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, p);  ctx.lineTo(cs, p);  ctx.stroke();
+    const gridStep = cs / 10;
+    const wLeft   = -offsetX / scale;
+    const wTop    = -offsetY / scale;
+    const wRight  = (W - offsetX) / scale;
+    const wBottom = (H - offsetY) / scale;
+    const gx0 = Math.floor(wLeft  / gridStep) * gridStep;
+    const gy0 = Math.floor(wTop   / gridStep) * gridStep;
+    for (let gx = gx0; gx <= wRight + gridStep; gx += gridStep) {
+      ctx.beginPath(); ctx.moveTo(gx, wTop  - gridStep); ctx.lineTo(gx, wBottom + gridStep); ctx.stroke();
+    }
+    for (let gy = gy0; gy <= wBottom + gridStep; gy += gridStep) {
+      ctx.beginPath(); ctx.moveTo(wLeft - gridStep, gy); ctx.lineTo(wRight + gridStep, gy); ctx.stroke();
     }
 
     // Center crosshair
@@ -84,45 +104,55 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     // Radar circles — drawn as part of fog of war overlay below
     const now = Date.now();
 
-    // Attack lines (IN_FLIGHT = moving toward defender; RETURNING = moving back)
-    for (const attack of (attacks ?? [])) {
+    // Attack lines — solid, with parallel offset for mutual attacks
+    const attacksList = attacks ?? [];
+    for (const attack of attacksList) {
       const ax = kmToWorld(attack.attackerBase.x, cs);
       const ay = kmToWorld(attack.attackerBase.y, cs);
       const dx = kmToWorld(attack.defenderBase.x, cs);
       const dy = kmToWorld(attack.defenderBase.y, cs);
       const isOwn = playerBases?.some((pb) => pb.id === attack.attackerBaseId);
 
+      // Check for parallel attack (mutual attack in opposite direction)
+      const hasMutual = attacksList.some(
+        (a) => a.id !== attack.id &&
+               a.attackerBaseId === attack.defenderBaseId &&
+               a.defenderBaseId === attack.attackerBaseId &&
+               a.status !== 'COMPLETED',
+      );
+      // Perpendicular offset — fixed 5 screen pixels regardless of zoom
+      let ox = 0, oy = 0;
+      if (hasMutual) {
+        const len = Math.sqrt((dx - ax) ** 2 + (dy - ay) ** 2) || 1;
+        const worldOffset = 5 / scale; // convert 5 screen px → world units
+        ox = (-(dy - ay) / len) * worldOffset;
+        oy = ((dx - ax) / len) * worldOffset;
+      }
+
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+
       if (attack.status === 'RETURNING' && attack.returnTime) {
-        // Draw return line from defender → attacker
         const arrival  = new Date(attack.arrivalTime).getTime();
         const ret      = new Date(attack.returnTime).getTime();
         const progress = ret > arrival ? Math.min((now - arrival) / (ret - arrival), 1) : 1;
-        const rx = dx + (ax - dx) * progress;
-        const ry = dy + (ay - dy) * progress;
+        const rx = dx + (ax - dx) * progress + ox;
+        const ry = dy + (ay - dy) * progress + oy;
         const won = attack.attackerWon;
-        const color = won ? 'rgba(74,222,128,0.7)' : 'rgba(239,68,68,0.7)';
-        ctx.setLineDash([4, 4]);
-        ctx.lineWidth   = 1.5;
-        ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.moveTo(dx, dy); ctx.lineTo(rx, ry); ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.strokeStyle = won ? 'rgba(74,222,128,0.7)' : 'rgba(239,68,68,0.7)';
+        ctx.beginPath(); ctx.moveTo(dx + ox, dy + oy); ctx.lineTo(rx, ry); ctx.stroke();
         ctx.beginPath();
         ctx.arc(rx, ry, 2 / scale, 0, 2 * Math.PI);
         ctx.fillStyle = won ? '#4ade80' : '#ef4444';
         ctx.fill();
       } else {
-        // IN_FLIGHT: draw forward line attacker → current position
         const launch   = new Date(attack.launchTime).getTime();
         const arrival  = new Date(attack.arrivalTime).getTime();
         const progress = Math.min((now - launch) / (arrival - launch), 1);
-        const mx = ax + (dx - ax) * progress;
-        const my = ay + (dy - ay) * progress;
-        ctx.setLineDash([4, 4]);
-        ctx.lineWidth   = 1.5;
+        const mx = ax + (dx - ax) * progress + ox;
+        const my = ay + (dy - ay) * progress + oy;
         ctx.strokeStyle = isOwn ? 'rgba(74,222,128,0.8)' : 'rgba(239,68,68,0.8)';
-        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(mx, my); ctx.stroke();
-        ctx.setLineDash([]);
-        // Dot in screen space (constant 2px regardless of zoom)
+        ctx.beginPath(); ctx.moveTo(ax + ox, ay + oy); ctx.lineTo(mx, my); ctx.stroke();
         ctx.beginPath();
         ctx.arc(mx, my, 2 / scale, 0, 2 * Math.PI);
         ctx.fillStyle = isOwn ? '#4ade80' : '#ef4444';
@@ -156,7 +186,8 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     for (const base of (bases ?? [])) {
       const bx = kmToWorld(base.x, cs);
       const by = kmToWorld(base.y, cs);
-      const r  = base.isAdmin ? 7 : 5;
+      const r  = 5; // uniform size — no special admin treatment
+      const isAlly = (allianceBaseIds ?? []).includes(base.id) || base.isAlly;
 
       // Glow ring for own bases
       if (base.isOwn) {
@@ -165,61 +196,134 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
         ctx.fillStyle = 'rgba(56,189,248,0.15)';
         ctx.fill();
       }
+      // Glow ring for ally bases
+      if (isAlly) {
+        ctx.beginPath();
+        ctx.arc(bx, by, r + 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(74,222,128,0.15)';
+        ctx.fill();
+      }
 
       ctx.beginPath();
       ctx.arc(bx, by, r, 0, 2 * Math.PI);
-      ctx.fillStyle = base.isAdmin ? '#facc15' : base.isOwn ? '#38bdf8' : '#94a3b8';
+      ctx.fillStyle = base.isOwn ? '#38bdf8'
+        : isAlly     ? '#4ade80'
+        : '#94a3b8';   // admin bases look identical to enemy bases
       ctx.fill();
 
-      ctx.font         = 'bold 7px Inter,sans-serif';
+      ctx.font         = 'bold 6px Inter,sans-serif';
       ctx.fillStyle    = '#0a1628';
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(base.initials, bx, by);
-
-      // Name label at higher zoom
-      if (scale > 1.5) {
-        ctx.font      = '6px Inter,sans-serif';
-        ctx.fillStyle = base.isOwn ? '#7dd3fc' : '#64748b';
-        ctx.fillText(base.name, bx, by + r + 7);
-      }
     }
 
     ctx.restore();
 
-    // Fog of war — black outside radar circle, visible inside
-    if (playerBases && playerBases.length > 0 && visRadius) {
+    // Fog of war — use offscreen canvas so overlapping base visibility circles
+    // don't cancel each other out (evenodd issue)
+    if (!disableFog && playerBases && playerBases.length > 0 && visRadius) {
       const circles = playerBases.map((pb) => ({
         x: kmToWorld(pb.x, cs) * scale + offsetX,
         y: kmToWorld(pb.y, cs) * scale + offsetY,
         r: (visRadius / MAP_KM) * cs * scale,
       }));
-      ctx.save();
-      ctx.fillStyle = 'rgba(2, 6, 18, 0.88)';
-      ctx.beginPath();
-      ctx.rect(0, 0, W, H);
+
+      const fog = document.createElement('canvas');
+      fog.width  = W;
+      fog.height = H;
+      const fctx = fog.getContext('2d');
+
+      fctx.fillStyle = 'rgba(2, 6, 18, 0.88)';
+      fctx.fillRect(0, 0, W, H);
+
+      fctx.globalCompositeOperation = 'destination-out';
       for (const c of circles) {
-        ctx.moveTo(c.x + c.r, c.y);
-        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2, true); // CCW = punch hole
+        const grad = fctx.createRadialGradient(c.x, c.y, c.r * 0.8, c.x, c.y, c.r);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        fctx.beginPath();
+        fctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        fctx.fillStyle = grad;
+        fctx.fill();
       }
-      ctx.fill('evenodd');
-      // Soft edge on each circle
-      for (const c of circles) {
-        const grad = ctx.createRadialGradient(c.x, c.y, c.r * 0.85, c.x, c.y, c.r);
-        grad.addColorStop(0, 'rgba(2,6,18,0)');
-        grad.addColorStop(1, 'rgba(2,6,18,0.88)');
+
+      ctx.drawImage(fog, 0, 0);
+    }
+
+    // Available plot dots (drawn on top of everything, always visible)
+    if (availablePlots.length > 0) {
+      availablePlots.forEach((plot, i) => {
+        const wx = kmToWorld(plot.x, cs);
+        const wy = kmToWorld(plot.y, cs);
+        const sx = wx * scale + offsetX;
+        const sy = wy * scale + offsetY;
+        if (sx < -60 || sx > W + 60 || sy < -60 || sy > H + 60) return;
+
+        const r = Math.max(7, Math.min(14, 10));
+        // Glow
+        const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 3);
+        grd.addColorStop(0, 'rgba(250,204,21,0.5)');
+        grd.addColorStop(1, 'rgba(250,204,21,0)');
         ctx.beginPath();
-        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
+        ctx.arc(sx, sy, r * 3, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
         ctx.fill();
-      }
-      ctx.restore();
+        // Dot
+        ctx.beginPath();
+        ctx.arc(sx, sy, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#facc15';
+        ctx.fill();
+        // Number label
+        ctx.fillStyle = '#020617';
+        ctx.font = `bold ${r - 1}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), sx, sy);
+      });
     }
 
     frameRef.current = requestAnimationFrame(draw);
-  }, [bases, attacks, tradePods, playerBases, visRadius]);
+  }, [bases, attacks, tradePods, playerBases, visRadius, allianceBaseIds, availablePlots, disableFog]);
 
-  // Init canvas size + center map; re-center only on true resize (not first init)
+  // Center map on active base (or first player base) when data first loads
+  const centeredRef = useRef(false);
+  useEffect(() => {
+    if (centeredRef.current) return;
+    if (!playerBases || playerBases.length === 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W  = canvas.width;
+    const H  = canvas.height;
+    if (!W || !H) return;
+    const cs = Math.min(W, H);
+    // Prefer the active base, fall back to first
+    const pb = (activeBaseId && playerBases.find((b) => b.id === activeBaseId)) ?? playerBases[0];
+    const wx = kmToWorld(pb.x, cs);
+    const wy = kmToWorld(pb.y, cs);
+    const s  = stateRef.current.scale;
+    stateRef.current.offsetX = W / 2 - wx * s;
+    stateRef.current.offsetY = H / 2 - wy * s;
+    centeredRef.current = true;
+  }, [playerBases, activeBaseId]);
+
+  // Re-center when user switches active base
+  const prevActiveRef = useRef(null);
+  useEffect(() => {
+    if (!activeBaseId || activeBaseId === prevActiveRef.current) return;
+    if (!playerBases || playerBases.length === 0) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.width || !canvas.height) return;
+    const W  = canvas.width;
+    const H  = canvas.height;
+    const cs = Math.min(W, H);
+    const pb = playerBases.find((b) => b.id === activeBaseId);
+    if (!pb) return;
+    const s = stateRef.current.scale;
+    stateRef.current.offsetX = W / 2 - kmToWorld(pb.x, cs) * s;
+    stateRef.current.offsetY = H / 2 - kmToWorld(pb.y, cs) * s;
+    prevActiveRef.current = activeBaseId;
+  }, [activeBaseId, playerBases]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -276,6 +380,8 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     if (Math.abs(e.clientX - stateRef.current.downX) < 8 &&
         Math.abs(e.clientY - stateRef.current.downY) < 8) {
       const { x, y } = canvasXY(e.clientX, e.clientY);
+      const plot = findPlotAt(x, y);
+      if (plot) { onPlotClick?.(plot); return; }
       const base = findBaseAt(x, y);
       if (base) onBaseClick?.(base);
     }
@@ -298,8 +404,10 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     return Math.sqrt(dx * dx + dy * dy);
   }
   function onTouchStart(e) {
+    e.preventDefault();
     if (e.touches.length === 2) {
       stateRef.current.pinchDist = touchDist(e);
+      stateRef.current.dragging  = false;
     } else {
       const t = e.touches[0];
       stateRef.current.dragging = true;
@@ -334,7 +442,9 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
       if (Math.abs(t.clientX - stateRef.current.downX) < 12 &&
           Math.abs(t.clientY - stateRef.current.downY) < 12) {
         const { x, y } = canvasXY(t.clientX, t.clientY);
-        const base = findBaseAt(x, y);
+        const plot = findPlotAt(x, y);
+        if (plot) { onPlotClick?.(plot); stateRef.current.dragging = false; stateRef.current.pinchDist = null; return; }
+        const base = findBaseAt(x, y, 40);
         if (base) onBaseClick?.(base);
       }
     }

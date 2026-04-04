@@ -1,4 +1,4 @@
-import { MAP_BOUNDS, BASE_PLACEMENT } from '../config/gameConfig.js';
+import { getBasePlacement } from '../services/gameConfigService.js';
 import { prisma } from '../prisma/client.js';
 
 function distance(x1, y1, x2, y2) {
@@ -6,8 +6,9 @@ function distance(x1, y1, x2, y2) {
 }
 
 /**
- * Place a new base 5–30 km from an existing base.
- * Tries up to 50 random positions before falling back to a completely random position.
+ * Place a new base for a season.
+ * - First base ever in that season always goes to (0, 0) — the centre.
+ * - Subsequent bases are placed 15–35 km from an existing base.
  */
 export async function placeNewBase(seasonId) {
   const existingBases = await prisma.base.findMany({
@@ -15,16 +16,11 @@ export async function placeNewBase(seasonId) {
     select: { x: true, y: true },
   });
 
-  const { min, max } = MAP_BOUNDS;
-  const { minKm, maxKm } = BASE_PLACEMENT;
+  // First base in the season → always centre
+  if (existingBases.length === 0) return { x: 0, y: 0 };
 
-  if (existingBases.length === 0) {
-    // Fallback: random within map
-    return {
-      x: min + Math.random() * (max - min),
-      y: min + Math.random() * (max - min),
-    };
-  }
+  const { minKm, maxKm } = getBasePlacement();
+  const min = -100, max = 100;
 
   for (let attempt = 0; attempt < 50; attempt++) {
     const anchor = existingBases[Math.floor(Math.random() * existingBases.length)];
@@ -34,11 +30,7 @@ export async function placeNewBase(seasonId) {
     const y = anchor.y + dist * Math.sin(angle);
 
     if (x < min || x > max || y < min || y > max) continue;
-
-    // Ensure not too close to other bases (min 2km)
-    const tooClose = existingBases.some((b) => distance(b.x, b.y, x, y) < 2);
-    if (tooClose) continue;
-
+    if (existingBases.some((b) => distance(b.x, b.y, x, y) < 2)) continue;
     return { x, y };
   }
 

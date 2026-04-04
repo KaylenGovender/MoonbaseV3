@@ -1,6 +1,8 @@
 import { prisma } from '../prisma/client.js';
-import { tickResources, addResources } from './resourceEngine.js';
+import { tickResources, addResources, applyHeliumAttrition } from './resourceEngine.js';
 import { resolveBattle } from './combatService.js';
+import { getHeliumUpkeepMap } from '../services/gameConfigService.js';
+import { awardVictoryMedals } from './medalService.js';
 
 let io = null;
 
@@ -35,6 +37,9 @@ export async function runTick() {
           },
         });
       }
+
+      // Helium attrition check (runs every tick but kills only every 30s)
+      await applyHeliumAttrition(base, io);
     }
 
     // ── 2. Building upgrade completions ───────────────────────────────────
@@ -52,10 +57,10 @@ export async function runTick() {
         data: { upgradeEndsAt: null },
       });
 
-      // Update population points
+      // Update population points (+1 per upgrade completed)
       await prisma.base.update({
         where: { id: building.baseId },
-        data: { populationPoints: { increment: building.level } },
+        data: { populationPoints: { increment: 1 } },
       });
 
       if (io) {
@@ -82,10 +87,10 @@ export async function runTick() {
         data: { upgradeEndsAt: null },
       });
 
-      // Update population points
+      // Update population points (+1 per upgrade completed)
       await prisma.base.update({
         where: { id: mine.baseId },
-        data: { populationPoints: { increment: mine.level } },
+        data: { populationPoints: { increment: 1 } },
       });
 
       if (io) {
@@ -137,7 +142,7 @@ export async function runTick() {
         data: { status: 'BATTLING' },
       });
 
-      const { report, attackerWon, resourcesLooted } = await resolveBattle(attack);
+    const { report, attackerWon, resourcesLooted, survivingAttackerUnits, attackerUnitsLost } = await resolveBattle(attack);
 
       // Calculate return time (same travel duration)
       const travelMs = new Date(attack.arrivalTime) - new Date(attack.launchTime);
@@ -161,6 +166,18 @@ export async function runTick() {
           report,
           role: 'defender',
         });
+
+        // Push updated defender resources + units so their UI refreshes immediately
+        const defenderRes = await prisma.resourceState.findUnique({ where: { baseId: attack.defenderBaseId } });
+        if (defenderRes) {
+          io.to(`base:${attack.defenderBaseId}`).emit('resource:update', {
+            baseId: attack.defenderBaseId,
+            resources: { oxygen: defenderRes.oxygen, water: defenderRes.water, iron: defenderRes.iron, helium3: defenderRes.helium3 },
+          });
+        }
+        const defenderStocks = await prisma.unitStock.findMany({ where: { baseId: attack.defenderBaseId } });
+        io.to(`base:${attack.defenderBaseId}`).emit('unit:update', { baseId: attack.defenderBaseId, stocks: defenderStocks });
+
         // Transition attack line to returning (green/red based on winner)
         const seasonId = (await prisma.base.findUnique({ where: { id: attack.defenderBaseId }, select: { seasonId: true } })).seasonId;
         io.to(`map:season:${seasonId}`).emit('map:attack_returning', {
@@ -183,19 +200,42 @@ export async function runTick() {
         data: { status: 'COMPLETED' },
       });
 
+      const report = attack.battleReport;
+
+      // Return surviving attacker units to base
+      if (report) {
+        const sentUnits = report.attackingUnits;
+        const lostUnits = report.attackerUnitsLost;
+        for (const [type, sent] of Object.entries(sentUnits)) {
+          const lost = lostUnits[type] || 0;
+          const surviving = Math.max(sent - lost, 0);
+          if (surviving > 0) {
+            await prisma.unitStock.upsert({
+              where: { baseId_type: { baseId: attack.attackerBaseId, type } },
+              update: { count: { increment: surviving } },
+              create: { baseId: attack.attackerBaseId, type, count: surviving },
+            });
+          }
+        }
+      }
+
       // Credit looted resources to attacker base
-      if (attack.battleReport?.attackerWon && attack.battleReport?.resourcesLooted) {
-        await addResources(attack.attackerBaseId, attack.battleReport.resourcesLooted);
+      if (report?.attackerWon && report?.resourcesLooted) {
+        await addResources(attack.attackerBaseId, report.resourcesLooted);
         if (io) {
           io.to(`base:${attack.attackerBaseId}`).emit('combat:loot_returned', {
             attackId:  attack.id,
-            resources: attack.battleReport.resourcesLooted,
+            resources: report.resourcesLooted,
           });
         }
       }
 
       if (io) {
-        // Always notify both sides when attack fully completes so they refresh reports
+        const stocks = await prisma.unitStock.findMany({ where: { baseId: attack.attackerBaseId } });
+        io.to(`base:${attack.attackerBaseId}`).emit('unit:update', {
+          baseId: attack.attackerBaseId,
+          stocks,
+        });
         io.to(`base:${attack.attackerBaseId}`).emit('combat:completed', { attackId: attack.id });
         io.to(`base:${attack.defenderBaseId}`).emit('combat:completed', { attackId: attack.id });
         const seasonId = (await prisma.base.findUnique({ where: { id: attack.attackerBaseId }, select: { seasonId: true } })).seasonId;
@@ -227,7 +267,74 @@ export async function runTick() {
       }
     }
 
-    // ── 8. Season end check ───────────────────────────────────────────────
+    // ── 8. Reinforcement arrivals ──────────────────────────────────────────
+    try {
+      const arrivedReinforcements = await prisma.reinforcement.findMany({
+        where: { arrivalTime: { lte: now }, status: 'IN_TRANSIT' },
+      });
+      for (const r of arrivedReinforcements) {
+        await prisma.reinforcement.update({ where: { id: r.id }, data: { status: 'ARRIVED' } });
+        for (const [type, qty] of Object.entries(r.units)) {
+          if (qty > 0) {
+            await prisma.unitStock.upsert({
+              where: { baseId_type: { baseId: r.toBaseId, type } },
+              update: { count: { increment: qty } },
+              create: { baseId: r.toBaseId, type, count: qty },
+            });
+          }
+        }
+        if (io) io.to(`base:${r.toBaseId}`).emit('reinforcement:arrived', { reinforcementId: r.id, units: r.units });
+      }
+
+      // ── 9. Reinforcement returns (recalled → units back to sender) ─────────
+      const returnedReinforcements = await prisma.reinforcement.findMany({
+        where: { returnTime: { lte: now }, status: 'RECALLED' },
+      });
+      for (const r of returnedReinforcements) {
+        await prisma.reinforcement.update({ where: { id: r.id }, data: { status: 'RETURNED' } });
+        for (const [type, qty] of Object.entries(r.units)) {
+          if (qty > 0) {
+            // Add back to sender
+            await prisma.unitStock.upsert({
+              where: { baseId_type: { baseId: r.fromBaseId, type } },
+              update: { count: { increment: qty } },
+              create: { baseId: r.fromBaseId, type, count: qty },
+            });
+            // Remove from destination (they've left)
+            try {
+              const stock = await prisma.unitStock.findUnique({
+                where: { baseId_type: { baseId: r.toBaseId, type } },
+              });
+              if (stock) {
+                const newCount = Math.max(0, stock.count - qty);
+                if (newCount === 0) {
+                  await prisma.unitStock.delete({ where: { baseId_type: { baseId: r.toBaseId, type } } });
+                } else {
+                  await prisma.unitStock.update({
+                    where: { baseId_type: { baseId: r.toBaseId, type } },
+                    data: { count: newCount },
+                  });
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+        if (io) {
+          io.to(`base:${r.fromBaseId}`).emit('reinforcement:returned', { reinforcementId: r.id, units: r.units });
+          // Update sender's unit display
+          const fromStocks = await prisma.unitStock.findMany({ where: { baseId: r.fromBaseId } });
+          io.to(`base:${r.fromBaseId}`).emit('unit:update', { baseId: r.fromBaseId, stocks: fromStocks });
+          // Notify destination so its helium upkeep display refreshes
+          const toStocks = await prisma.unitStock.findMany({ where: { baseId: r.toBaseId } });
+          io.to(`base:${r.toBaseId}`).emit('unit:update', { baseId: r.toBaseId, stocks: toStocks });
+        }
+      }
+    } catch (reinErr) {
+      // Reinforcement table may not exist yet — suppress until SQL migration is run
+      if (!reinErr.message?.includes('does not exist')) console.error('[tick/reinforce]', reinErr.message);
+    }
+
+    // ── 10. Season end check ───────────────────────────────────────────────
     const activeSeason = await prisma.season.findFirst({
       where: { isActive: true, endDate: { lte: now } },
     });
@@ -236,6 +343,8 @@ export async function runTick() {
         where: { id: activeSeason.id },
         data: { isActive: false },
       });
+      // Award victory medals to winning alliance on auto season end
+      await awardVictoryMedals(activeSeason.id);
       if (io) {
         io.emit('season:ended', { seasonId: activeSeason.id });
       }
@@ -246,8 +355,18 @@ export async function runTick() {
   }
 }
 
+let tickRunning = false;
+
 export function startTickEngine(socketIo) {
   io = socketIo;
-  setInterval(runTick, 1000);
+  setInterval(async () => {
+    if (tickRunning) return; // prevent overlapping ticks
+    tickRunning = true;
+    try {
+      await runTick();
+    } finally {
+      tickRunning = false;
+    }
+  }, 1000);
   console.log('⚙️  Tick engine started (1s interval)');
 }

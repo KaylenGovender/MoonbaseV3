@@ -52,7 +52,7 @@ router.post('/claim', requireAuth, async (req, res) => {
       const lab = await prisma.building.findUnique({
         where: { baseId_type: { baseId: requiredBase.id, type: 'RESEARCH_LAB' } },
       });
-      if (!lab || lab.level < 20) {
+      if (!lab || (lab.upgradeEndsAt ? lab.level - 1 : lab.level) < 20) {
         return res.status(400).json({ error: 'Research Lab must be Level 20 on your latest base to claim a new one' });
       }
     }
@@ -139,25 +139,29 @@ router.post('/:id/transfer', requireAuth, async (req, res) => {
       await addResources(toBaseId, resAmounts);
     }
 
-    // ── Units ──────────────────────────────────────────────────────────────────
+    // ── Units (atomic transaction to prevent race conditions) ─────────────
     const unitEntries = Object.entries(units).filter(([, qty]) => Math.floor(qty) > 0);
 
-    for (const [type, qty] of unitEntries) {
-      const amount = Math.floor(qty);
-      const fromStock = await prisma.unitStock.findUnique({
-        where: { baseId_type: { baseId: fromBaseId, type } },
-      });
-      if (!fromStock || fromStock.count < amount) {
-        return res.status(400).json({ error: `Not enough ${type} to transfer` });
-      }
-      await prisma.unitStock.update({
-        where: { baseId_type: { baseId: fromBaseId, type } },
-        data: { count: { decrement: amount } },
-      });
-      await prisma.unitStock.upsert({
-        where: { baseId_type: { baseId: toBaseId, type } },
-        create: { baseId: toBaseId, type, count: amount },
-        update: { count: { increment: amount } },
+    if (unitEntries.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        for (const [type, qty] of unitEntries) {
+          const amount = Math.floor(qty);
+          const fromStock = await tx.unitStock.findUnique({
+            where: { baseId_type: { baseId: fromBaseId, type } },
+          });
+          if (!fromStock || fromStock.count < amount) {
+            throw new Error(`Not enough ${type} to transfer`);
+          }
+          await tx.unitStock.update({
+            where: { baseId_type: { baseId: fromBaseId, type } },
+            data: { count: { decrement: amount } },
+          });
+          await tx.unitStock.upsert({
+            where: { baseId_type: { baseId: toBaseId, type } },
+            create: { baseId: toBaseId, type, count: amount },
+            update: { count: { increment: amount } },
+          });
+        }
       });
     }
 
@@ -279,10 +283,20 @@ router.post('/:id/building/:type/upgrade', requireAuth, async (req, res) => {
     });
     const startAfter = lastQueued?.upgradeEndsAt ? new Date(lastQueued.upgradeEndsAt) : new Date();
     const upgradeEndsAt = new Date(startAfter.getTime() + timeSeconds * 1000);
-    const updated = await prisma.building.update({
-      where: { baseId_type: { baseId, type } },
-      data: { level: nextLevel, upgradeEndsAt },
-    });
+
+    // Atomic: only set upgrade if not already upgrading (prevents double-queue race)
+    const rowsUpdated = await prisma.$executeRawUnsafe(
+      `UPDATE "Building" SET "level" = $1, "upgradeEndsAt" = $2
+       WHERE "baseId" = $3 AND "type" = $4 AND "upgradeEndsAt" IS NULL`,
+      nextLevel, upgradeEndsAt, baseId, type
+    );
+    if (rowsUpdated === 0) {
+      // Race: another request already queued this upgrade — refund resources
+      await addResources(baseId, { oxygen: config.oxygen, water: config.water, iron: config.iron, helium3: config.helium3 });
+      return res.status(400).json({ error: 'Already upgrading this building' });
+    }
+
+    const updated = await prisma.building.findUnique({ where: { baseId_type: { baseId, type } } });
 
     res.json({ building: updated });
   } catch (err) {
@@ -335,10 +349,19 @@ router.post('/:id/mine/:mineId/upgrade', requireAuth, async (req, res) => {
     });
     const startAfter = lastQueued?.upgradeEndsAt ? new Date(lastQueued.upgradeEndsAt) : new Date();
     const upgradeEndsAt = new Date(startAfter.getTime() + timeSeconds * 1000);
-    const updated = await prisma.mine.update({
-      where: { id: mineId },
-      data: { level: nextLevel, upgradeEndsAt },
-    });
+
+    // Atomic: only set upgrade if not already upgrading (prevents double-queue race)
+    const rowsUpdated = await prisma.$executeRawUnsafe(
+      `UPDATE "Mine" SET "level" = $1, "upgradeEndsAt" = $2
+       WHERE "id" = $3 AND "upgradeEndsAt" IS NULL`,
+      nextLevel, upgradeEndsAt, mineId
+    );
+    if (rowsUpdated === 0) {
+      await addResources(baseId, { oxygen: config.oxygen, water: config.water, iron: config.iron, helium3: config.helium3 });
+      return res.status(400).json({ error: 'Mine already upgrading' });
+    }
+
+    const updated = await prisma.mine.findUnique({ where: { id: mineId } });
 
     res.json({ mine: updated });
   } catch (err) {
@@ -361,7 +384,7 @@ router.get('/:id/resources', requireAuth, async (req, res) => {
       where: { baseId_type: { baseId, type: 'SILO' } },
     });
     const rates = await getResourceRates(baseId);
-    const cap = getSiloCapacity(siloBuilding?.level ?? 0);
+    const cap = getSiloCapacity(siloBuilding?.upgradeEndsAt ? siloBuilding.level - 1 : siloBuilding?.level ?? 0);
     res.json({ resourceState, rates, capacity: cap, mines });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });

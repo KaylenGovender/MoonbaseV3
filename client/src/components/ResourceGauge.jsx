@@ -58,7 +58,7 @@ export default function ResourceGauge({ type, value, max, rate, onClick }) {
 
       <div className="text-center">
         <div className={`text-[11px] font-semibold ${meta.text}`}>{meta.label}</div>
-        <div className="text-[10px] text-slate-500">{formatRate(rate ?? 0)}</div>
+        <div className={`text-xs font-bold ${meta.text}`}>{formatRate(rate ?? 0)}</div>
       </div>
     </button>
   );
