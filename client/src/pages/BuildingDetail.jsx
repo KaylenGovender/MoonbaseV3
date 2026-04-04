@@ -13,14 +13,14 @@ const TYPE_UPPER_MAP = {
 
 function buildingLevelCost(type, level) {
   const baseCosts = {
-    SILO:              { oxygen: 50,  water: 30,  iron: 100, helium3: 0,  time: 60  },
-    BUNKER:            { oxygen: 30,  water: 20,  iron: 150, helium3: 0,  time: 90  },
-    RESEARCH_LAB:      { oxygen: 100, water: 50,  iron: 200, helium3: 10, time: 120 },
-    RADAR:             { oxygen: 80,  water: 40,  iron: 120, helium3: 5,  time: 90  },
-    WAR_ROOM:          { oxygen: 60,  water: 80,  iron: 200, helium3: 20, time: 120 },
-    CONSTRUCTION_YARD: { oxygen: 100, water: 60,  iron: 300, helium3: 10, time: 180 },
-    ALLIANCE:          { oxygen: 50,  water: 50,  iron: 100, helium3: 10, time: 60  },
-    TRADE_POD:         { oxygen: 40,  water: 40,  iron: 80,  helium3: 20, time: 90  },
+    SILO:              { oxygen: 160, water:  96, iron: 160, helium3: 16, time: 240 },
+    BUNKER:            { oxygen:  96, water:  64, iron: 240, helium3: 16, time: 360 },
+    RESEARCH_LAB:      { oxygen: 320, water: 160, iron: 320, helium3: 32, time: 480 },
+    RADAR:             { oxygen: 256, water: 128, iron: 192, helium3: 16, time: 360 },
+    WAR_ROOM:          { oxygen: 192, water: 256, iron: 320, helium3: 64, time: 480 },
+    CONSTRUCTION_YARD: { oxygen: 320, water: 192, iron: 480, helium3: 32, time: 720 },
+    ALLIANCE:          { oxygen: 160, water: 160, iron: 160, helium3: 32, time: 240 },
+    TRADE_POD:         { oxygen: 128, water: 128, iron: 128, helium3: 64, time: 360 },
   };
   const b = baseCosts[type];
   if (!b || level < 1 || level > 20) return null;
@@ -37,13 +37,13 @@ function buildingLevelCost(type, level) {
 function getBuildingEffect(type, level) {
   switch (type) {
     case 'SILO':              return `Storage: ${formatNumber(siloCapacity(level))} per resource`;
-    case 'BUNKER':            return `Protects ${bunkerProtection(level)}% of resources`;
+    case 'BUNKER':            return `Protects ${bunkerProtection(level)}% of resources from raiders`;
     case 'RADAR':             return `Visibility: ${radarRange(level)} km radius`;
     case 'CONSTRUCTION_YARD': return `Build time reduction: ${constructionYardReduction(level)}%`;
     case 'RESEARCH_LAB':      return level >= 20 ? '✓ Extra base unlocked' : `${20 - level} more levels to unlock extra base`;
-    case 'WAR_ROOM':          return 'Enables unit training';
-    case 'ALLIANCE':          return `Max alliance size: ${level}`;
-    case 'TRADE_POD':         return 'Enables resource transfers';
+    case 'WAR_ROOM':          return `Reduces unit training time by ${Math.min(level * 3, 50)}% (enables training at L1)`;
+    case 'ALLIANCE':          return `Max alliance size: ${level} members`;
+    case 'TRADE_POD':         return `Send resources to your own bases & alliance members (range: ${level * 20}km)`;
     default:                  return '';
   }
 }
@@ -102,6 +102,9 @@ export default function BuildingDetail() {
   const anyUpgrading = buildings.some((b) => b.upgradeEndsAt);
   const isUpgrading  = !!building?.upgradeEndsAt;
   const isMaxLevel   = currentLevel >= 20;
+  // Effective level is the actual current level; during upgrade the DB has already set level to the
+  // new target, so we subtract 1 to get what the building is actually at right now.
+  const effectiveLevel = isUpgrading ? currentLevel - 1 : currentLevel;
   const cyBuilding   = buildings.find((b) => b.type === 'CONSTRUCTION_YARD');
   const reduction    = constructionYardReduction(cyBuilding?.level ?? 0);
   const adjustedTime = cost ? Math.round(cost.timeSeconds * (1 - reduction / 100)) : 0;
@@ -124,9 +127,9 @@ export default function BuildingDetail() {
         <div className="card space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-slate-400 text-sm">Current Level</span>
-            <span className="text-2xl font-bold text-white font-mono">{currentLevel}</span>
+            <span className="text-2xl font-bold text-white font-mono">{effectiveLevel}</span>
           </div>
-          <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, currentLevel)}</div>
+          <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, effectiveLevel)}</div>
         </div>
 
         {isUpgrading ? (
