@@ -4,9 +4,9 @@ import { useBaseStore } from '../store/baseStore.js';
 import { useState } from 'react';
 
 const MAIN_TABS = [
-  { to: '/base',        label: 'Base',    icon: '🏗️' },
+  { to: '/base',        label: 'Base',    icon: '🌕' },
   { to: '/map',         label: 'Map',     icon: '🧭' },
-  { to: '/warroom',     label: 'Units',   icon: '🎖️' },
+  { to: '/warroom',     label: 'Units',   icon: '⚔️' },
   { to: '/alliance',    label: 'Alliance',icon: '🤝' },
   { to: '/leaderboard', label: 'Ranks',   icon: '🏆' },
 ];

@@ -128,7 +128,7 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setQty(stock.type, qty - 1)}
-                    className="w-9 h-9 rounded-lg bg-space-700 text-white text-lg flex items-center justify-center"
+                    className="w-11 h-11 rounded-lg bg-space-700 text-white text-lg flex items-center justify-center"
                   >−</button>
                   <input
                     type="number"
@@ -140,7 +140,7 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
                   />
                   <button
                     onClick={() => setQty(stock.type, qty + 1)}
-                    className="w-9 h-9 rounded-lg bg-space-700 text-white text-lg flex items-center justify-center"
+                    className="w-11 h-11 rounded-lg bg-space-700 text-white text-lg flex items-center justify-center"
                   >+</button>
                   <button
                     onClick={() => setQty(stock.type, stock.count)}

@@ -15,6 +15,7 @@ import tradepodRoutes from './routes/tradepod.js';
 import adminRoutes from './routes/admin.js';
 import reinforcementRoutes from './routes/reinforcement.js';
 import { getGameConfig } from './services/gameConfigService.js';
+import { getConfig } from './services/serverConfig.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = join(__dirname, '..', '..', 'client', 'dist');
@@ -53,10 +54,18 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // App version — client polls this to detect new deployments
-app.get('/api/version', (_req, res) => res.json({ version: 'v3.0.2' }));
+app.get('/api/version', (_req, res) => res.json({ version: 'v3.0.3' }));
 
 // Public game config — client uses this to show current costs/stats
 app.get('/api/config/game', (_req, res) => res.json(getGameConfig()));
+
+// Public announcement — shown as banner in client
+app.get('/api/announcement', async (_req, res) => {
+  try {
+    const text = await getConfig('announcement', '');
+    res.json({ text });
+  } catch { res.json({ text: '' }); }
+});
 
 // API routes
 app.use('/api/auth',        authRoutes);

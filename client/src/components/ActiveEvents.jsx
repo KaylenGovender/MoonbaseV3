@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCountdown, formatEta } from '../utils/format.js';
+import { BUILDING_META, UNIT_META } from '../utils/gameConstants.js';
 
 export default function ActiveEvents({ base }) {
   const [, tick] = useState(0);
@@ -60,16 +61,19 @@ export default function ActiveEvents({ base }) {
         />
       ))}
 
-      {upgradingBuildings.map((b) => (
+      {upgradingBuildings.map((b) => {
+        const bMeta = BUILDING_META[b.type];
+        return (
         <EventRow
           key={b.id}
-          icon="🏗️"
+          icon={bMeta?.icon ?? '🏗️'}
           color="text-purple-400"
           bg="bg-purple-900/20 border-purple-800/40"
-          label={`${formatBuildingName(b.type)} upgrading → L${b.level}`}
+          label={`${bMeta?.label ?? formatBuildingName(b.type)} upgrading → L${b.level}`}
           time={formatCountdown(b.upgradeEndsAt)}
         />
-      ))}
+        );
+      })}
 
       {upgradingMines.map((m) => (
         <EventRow
@@ -82,16 +86,19 @@ export default function ActiveEvents({ base }) {
         />
       ))}
 
-      {buildQueues.map((job) => (
+      {buildQueues.map((job) => {
+        const uMeta = UNIT_META[job.unitType];
+        return (
         <EventRow
           key={job.id}
-          icon="🏭"
+          icon={uMeta?.icon ?? '🏭'}
           color="text-blue-400"
           bg="bg-blue-900/20 border-blue-800/40"
-          label={`Building ${job.quantity}× ${formatUnitName(job.unitType)}`}
+          label={`Building ${job.quantity}× ${uMeta?.label ?? formatUnitName(job.unitType)}`}
           time={formatCountdown(job.completesAt)}
         />
-      ))}
+        );
+      })}
 
       {tradePodsOut.map((pod) => (
         <EventRow

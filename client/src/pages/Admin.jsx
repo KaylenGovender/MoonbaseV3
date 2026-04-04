@@ -56,7 +56,7 @@ export default function Admin() {
   const navigate  = useNavigate();
   const user           = useAuthStore((s) => s.user);
   const loadGameConfig = useAuthStore((s) => s.loadGameConfig);
-  const [tab, setTab]   = useState('players');
+  const [tab, setTab]   = useState('dashboard');
   const [error, setError] = useState('');
 
   // ── Players tab ──
@@ -71,7 +71,7 @@ export default function Admin() {
   // ── Seasons tab ──
   const [seasons, setSeasons]         = useState([]);
   const [loadingSeasons, setLoadingSeasons] = useState(false);
-  const [loadingSeason, setLoadingSeason] = useState(false); // spinner for create/activate/end
+  const [loadingSeasonOps, setLoadingSeasonOps] = useState({}); // { [seasonId]: 'activating'|'ending'|'deleting'|'saving', _create: true }
   const [newSeason, setNewSeason]     = useState({ name: '', startDate: '', endDate: '', activate: false });
   const [seasonMsg, setSeasonMsg]     = useState('');
   const [editingSeason, setEditingSeason] = useState(null);
@@ -95,7 +95,63 @@ export default function Admin() {
   const [configSection, setConfigSection] = useState('buildings');
   const [configMsg, setConfigMsg]     = useState('');
 
+  // ── Dashboard tab ──
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [activeAttacks, setActiveAttacks] = useState([]);
+  const [battleReports, setBattleReports] = useState([]);
+
+  // ── Alliances tab ──
+  const [alliances, setAlliances] = useState([]);
+  const [loadingAlliances, setLoadingAlliances] = useState(false);
+  const [expandedAlliance, setExpandedAlliance] = useState(null);
+  const [allianceMsg, setAllianceMsg] = useState('');
+
+  // ── Announcement ──
+  const [announcement, setAnnouncement] = useState('');
+  const [announcementDraft, setAnnouncementDraft] = useState('');
+  const [announcementMsg, setAnnouncementMsg] = useState('');
+
   useEffect(() => { if (user && !user.isAdmin) navigate('/base'); }, [user]);
+
+  // ── Dashboard fetch ──
+  async function loadDashboard() {
+    setLoadingDashboard(true);
+    try {
+      const [dash, attacks, reports] = await Promise.all([
+        api.get('/admin/dashboard'),
+        api.get('/admin/attacks?active=true').catch(() => ({ attacks: [] })),
+        api.get('/admin/battle-reports').catch(() => ({ reports: [] })),
+      ]);
+      setDashboardData(dash);
+      setActiveAttacks(attacks.attacks ?? []);
+      setBattleReports(reports.reports ?? []);
+    } catch {}
+    setLoadingDashboard(false);
+  }
+  useEffect(() => { if (tab === 'dashboard') loadDashboard(); }, [tab]);
+
+  // ── Alliances fetch ──
+  async function loadAlliances() {
+    setLoadingAlliances(true);
+    try {
+      const res = await api.get('/admin/alliances');
+      setAlliances(res.alliances ?? res.rows ?? []);
+    } catch {}
+    setLoadingAlliances(false);
+  }
+  useEffect(() => { if (tab === 'alliances') loadAlliances(); }, [tab]);
+
+  // ── Announcement fetch ──
+  async function loadAnnouncement() {
+    try {
+      const res = await api.get('/admin/announcement');
+      const text = res.text ?? '';
+      setAnnouncement(text);
+      setAnnouncementDraft(text);
+    } catch {}
+  }
+  useEffect(() => { if (tab === 'server') loadAnnouncement(); }, [tab]);
 
   // ── Search (debounced 300ms) ──
   useEffect(() => {
@@ -156,8 +212,6 @@ export default function Admin() {
       const res = await api.get('/admin/seasons');
       const rows = res.rows ?? [];
       setSeasons(rows);
-      // Auto-load week configs for all seasons
-      for (const s of rows) { loadWeeks(s.id); }
     } catch {}
     setLoadingSeasons(false);
   }
@@ -165,7 +219,7 @@ export default function Admin() {
 
   async function createSeason() {
     setSeasonMsg('');
-    setLoadingSeason(true);
+    setLoadingSeasonOps((prev) => ({ ...prev, _create: true }));
     try {
       await api.post('/admin/season', {
         ...newSeason,
@@ -176,38 +230,38 @@ export default function Admin() {
       setSeasonMsg('✅ Season created!');
       loadSeasons();
     } catch (e) { setSeasonMsg(`❌ ${e.message}`); }
-    finally { setLoadingSeason(false); }
+    finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n._create; return n; }); }
   }
 
   async function activateSeason(id) {
-    setLoadingSeason(true);
+    setLoadingSeasonOps((prev) => ({ ...prev, [id]: 'activating' }));
     try { await api.put(`/admin/seasons/${id}`, { isActive: true }); loadSeasons(); }
     catch (e) { setError(e.message); }
-    finally { setLoadingSeason(false); }
+    finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[id]; return n; }); }
   }
 
   async function endSeason(id) {
     if (!window.confirm('End season and award victory medals?')) return;
-    setLoadingSeason(true);
+    setLoadingSeasonOps((prev) => ({ ...prev, [id]: 'ending' }));
     try {
       const res = await api.post(`/admin/season/${id}/end`, {});
       setSeasonMsg(`✅ Season ended. Winner: ${res.winningAlliance ?? 'None'}`);
       loadSeasons();
     } catch (e) { setError(e.message); }
-    finally { setLoadingSeason(false); }
+    finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[id]; return n; }); }
   }
 
   async function deleteSeason(id) {
     if (!window.confirm('Delete season? This cannot be undone.')) return;
-    setLoadingSeason(true);
+    setLoadingSeasonOps((prev) => ({ ...prev, [id]: 'deleting' }));
     try { await api.delete(`/admin/seasons/${id}`); loadSeasons(); }
     catch (e) { setError(e.message); }
-    finally { setLoadingSeason(false); }
+    finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[id]; return n; }); }
   }
 
   async function saveSeasonEdit() {
     if (!editingSeason) return;
-    setLoadingSeason(true);
+    setLoadingSeasonOps((prev) => ({ ...prev, [editingSeason.id]: 'saving' }));
     try {
       await api.put(`/admin/seasons/${editingSeason.id}`, {
         name:      editingSeason.name,
@@ -218,7 +272,7 @@ export default function Admin() {
       setSeasonMsg('✅ Season updated!');
       loadSeasons();
     } catch (e) { setSeasonMsg(`❌ ${e.message}`); }
-    finally { setLoadingSeason(false); }
+    finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[editingSeason?.id]; return n; }); }
   }
 
   // ── Server reset ──
@@ -324,7 +378,112 @@ export default function Admin() {
     } catch (e) { setResetMsg(`❌ ${e.message}`); }
   }
 
-  const switchTab = (t) => { setTab(t); setSelectedPlayer(null); setError(''); setSeasonMsg(''); setResetMsg(''); setResetConfirm(false); };
+  // ── Alliance management ──
+  async function disbandAlliance(id) {
+    if (!window.confirm('Disband this alliance? This cannot be undone.')) return;
+    try {
+      await api.delete(`/admin/alliances/${id}`);
+      setAllianceMsg('✅ Alliance disbanded');
+      loadAlliances();
+      setTimeout(() => setAllianceMsg(''), 3000);
+    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+  }
+
+  async function kickMember(allianceId, userId) {
+    if (!window.confirm('Kick this member from the alliance?')) return;
+    try {
+      await api.delete(`/admin/alliances/${allianceId}/members/${userId}`);
+      setAllianceMsg('✅ Member kicked');
+      loadAlliances();
+      setTimeout(() => setAllianceMsg(''), 3000);
+    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+  }
+
+  async function transferLeadership(allianceId, userId) {
+    if (!window.confirm('Transfer leadership to this member?')) return;
+    try {
+      await api.put(`/admin/alliances/${allianceId}/leader`, { userId });
+      setAllianceMsg('✅ Leadership transferred');
+      loadAlliances();
+      setTimeout(() => setAllianceMsg(''), 3000);
+    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+  }
+
+  // ── Announcement ──
+  async function saveAnnouncement() {
+    try {
+      await api.put('/admin/announcement', { text: announcementDraft });
+      setAnnouncement(announcementDraft);
+      setAnnouncementMsg('✅ Announcement updated');
+      setTimeout(() => setAnnouncementMsg(''), 3000);
+    } catch (e) { setAnnouncementMsg(`❌ ${e.message}`); }
+  }
+
+  // ── Quick actions ──
+  async function giveStarterKit() {
+    try {
+      await api.post(`/admin/players/${selectedPlayer.user.id}/starter-kit`, {});
+      await refreshPlayer();
+      setError('');
+    } catch (e) { setError(e.message); }
+  }
+
+  async function maxAllBuildings() {
+    try {
+      await api.post(`/admin/players/${selectedPlayer.user.id}/max-buildings`, {});
+      await refreshPlayer();
+      setError('');
+    } catch (e) { setError(e.message); }
+  }
+
+  async function resetBases() {
+    if (!window.confirm('Reset all bases for this player? This cannot be undone.')) return;
+    try {
+      await api.post(`/admin/players/${selectedPlayer.user.id}/reset-bases`, {});
+      await refreshPlayer();
+      setError('');
+    } catch (e) { setError(e.message); }
+  }
+
+  // ── Config reset / export / import ──
+  async function resetConfigToDefaults() {
+    if (!window.confirm('Reset game config to defaults? This cannot be undone.')) return;
+    try {
+      const res = await api.post('/admin/game-config/reset', {});
+      setGameConfig(res.config ?? res);
+      setConfigMsg('✅ Config reset to defaults');
+      loadGameConfig();
+      setTimeout(() => setConfigMsg(''), 3000);
+    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+  }
+
+  async function exportConfig() {
+    try {
+      const data = await api.get('/admin/game-config/export');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `game-config-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+  }
+
+  async function importConfig(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const res = await api.post('/admin/game-config/import', json);
+      setGameConfig(res.config ?? res);
+      setConfigMsg('✅ Config imported successfully');
+      loadGameConfig();
+      setTimeout(() => setConfigMsg(''), 3000);
+    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+  }
+
+  const switchTab = (t) => { setTab(t); setSelectedPlayer(null); setError(''); setSeasonMsg(''); setResetMsg(''); setResetConfirm(false); setAllianceMsg(''); setAnnouncementMsg(''); };
 
   return (
     <div className="page">
@@ -340,7 +499,7 @@ export default function Admin() {
 
       {/* Tabs */}
       <div className="flex border-b border-space-600/50 overflow-x-auto">
-        {[['players','👥'],['seasons','🌙'],['server','⚙️'],['config','🎮']].map(([key,icon]) => (
+        {[['dashboard','🏠'],['players','👥'],['alliances','🤝'],['seasons','📅'],['server','🖥️'],['config','⚙️']].map(([key,icon]) => (
           <button key={key} onClick={() => switchTab(key)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${tab === key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}>
             {icon} {key.charAt(0).toUpperCase() + key.slice(1)}
@@ -352,6 +511,102 @@ export default function Admin() {
         <div className="mx-4 mt-3 bg-red-900/40 border border-red-700/50 text-red-300 text-xs rounded-lg px-4 py-2.5 flex items-center justify-between">
           {error}
           <button onClick={() => setError('')} className="ml-2 text-red-400 text-base">✕</button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════ DASHBOARD ═════════════════════════════ */}
+      {tab === 'dashboard' && (
+        <div className="px-4 py-4 space-y-4 pb-24">
+          {loadingDashboard ? (
+            <div className="text-center py-10 text-slate-500 text-sm">Loading dashboard…</div>
+          ) : dashboardData ? (
+            <>
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['👥', 'Total Players',       dashboardData.totalPlayers],
+                  ['🏠', 'Total Bases',          dashboardData.totalBases],
+                  ['⚔️', 'Active Attacks',       dashboardData.activeAttacks ?? activeAttacks.length],
+                  ['📝', 'Recent Registrations', dashboardData.recentRegistrations],
+                  ['🤝', 'Total Alliances',      dashboardData.totalAlliances],
+                ].map(([icon, label, val]) => (
+                  <div key={label} className="card flex items-center gap-3">
+                    <span className="text-2xl">{icon}</span>
+                    <div>
+                      <div className="text-lg font-bold text-white">{val ?? 0}</div>
+                      <div className="text-[10px] text-slate-500">{label}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Active season */}
+              {dashboardData.activeSeason && (
+                <div className="card space-y-2">
+                  <p className="section-title">📅 Active Season</p>
+                  <div className="text-sm font-semibold text-white">{dashboardData.activeSeason.name}</div>
+                  <div className="text-xs text-slate-400">
+                    {new Date(dashboardData.activeSeason.startDate).toLocaleDateString()} → {new Date(dashboardData.activeSeason.endDate).toLocaleDateString()}
+                  </div>
+                  {dashboardData.activeSeason.daysRemaining != null && (
+                    <div className="text-xs text-blue-300 font-mono">{dashboardData.activeSeason.daysRemaining} days remaining</div>
+                  )}
+                </div>
+              )}
+
+              {/* Active attacks */}
+              <div className="card space-y-2">
+                <p className="section-title">⚔️ Active Attacks</p>
+                {activeAttacks.length === 0 ? (
+                  <div className="text-xs text-slate-600 text-center py-2">No active attacks</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {activeAttacks.map((a, i) => (
+                      <div key={a.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2 flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-white">
+                            <span className="text-red-400">{a.attackerName ?? a.attacker ?? '?'}</span>
+                            {' → '}
+                            <span className="text-blue-400">{a.defenderName ?? a.defender ?? '?'}</span>
+                          </div>
+                          {a.army && <div className="text-[10px] text-slate-500 mt-0.5">{typeof a.army === 'string' ? a.army : Object.entries(a.army).filter(([,v]) => v > 0).map(([k,v]) => `${k}:${v}`).join(', ')}</div>}
+                        </div>
+                        {a.eta && <span className="text-[10px] text-yellow-400 font-mono">{a.eta}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent battles */}
+              <div className="card space-y-2">
+                <p className="section-title">🏆 Recent Battles</p>
+                {battleReports.length === 0 ? (
+                  <div className="text-xs text-slate-600 text-center py-2">No recent battles</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {battleReports.slice(0, 10).map((r, i) => (
+                      <div key={r.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-white">
+                            <span className="text-red-400">{r.attackerName ?? r.attacker ?? '?'}</span>
+                            {' vs '}
+                            <span className="text-blue-400">{r.defenderName ?? r.defender ?? '?'}</span>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.winner === 'attacker' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}`}>
+                            {r.winner ?? r.outcome ?? '?'}
+                          </span>
+                        </div>
+                        {r.createdAt && <div className="text-[10px] text-slate-600 mt-0.5">{new Date(r.createdAt).toLocaleString()}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-10 text-slate-600 text-sm">Failed to load dashboard</div>
+          )}
         </div>
       )}
 
@@ -420,6 +675,25 @@ export default function Admin() {
                 </div>
                 <div className="text-[10px] text-slate-600">
                   {selectedPlayer.bases.length} base{selectedPlayer.bases.length !== 1 ? 's' : ''} · {selectedPlayer.medals.length} medal record{selectedPlayer.medals.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="card space-y-2">
+                <p className="section-title">⚡ Quick Actions</p>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={giveStarterKit}
+                    className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50 hover:bg-green-900/30">
+                    💰 Give Starter Kit
+                  </button>
+                  <button onClick={maxAllBuildings}
+                    className="btn-ghost text-xs py-1.5 px-3 text-blue-400 border-blue-800/50 hover:bg-blue-900/30">
+                    ⬆️ Max All Buildings
+                  </button>
+                  <button onClick={resetBases}
+                    className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
+                    🗑️ Reset Bases
+                  </button>
                 </div>
               </div>
 
@@ -562,8 +836,8 @@ export default function Admin() {
                 onChange={(e) => setNewSeason((s) => ({ ...s, activate: e.target.checked }))} />
               Activate immediately
             </label>
-            <button onClick={createSeason} disabled={loadingSeason} className="btn-primary w-full text-sm py-2.5">
-              {loadingSeason ? '⏳ Creating…' : 'Create Season'}
+            <button onClick={createSeason} disabled={!!loadingSeasonOps._create} className="btn-primary w-full text-sm py-2.5">
+              {loadingSeasonOps._create ? '⏳ Creating…' : 'Create Season'}
             </button>
             {seasonMsg && <div className={`text-xs ${seasonMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{seasonMsg}</div>}
           </div>
@@ -596,8 +870,8 @@ export default function Admin() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={saveSeasonEdit} disabled={loadingSeason} className="btn-primary flex-1 text-xs py-1.5">
-                          {loadingSeason ? '⏳ Saving…' : 'Save'}
+                        <button onClick={saveSeasonEdit} disabled={!!loadingSeasonOps[s.id]} className="btn-primary flex-1 text-xs py-1.5">
+                          {loadingSeasonOps[s.id] === 'saving' ? '⏳ Saving…' : 'Save'}
                         </button>
                         <button onClick={() => setEditingSeason(null)} className="btn-ghost flex-1 text-xs py-1.5">Cancel</button>
                       </div>
@@ -626,13 +900,13 @@ export default function Admin() {
                           Edit
                         </button>
                         {!s.isActive && (
-                          <button onClick={() => activateSeason(s.id)} disabled={loadingSeason} className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50">
-                            {loadingSeason ? '⏳' : 'Activate'}
+                          <button onClick={() => activateSeason(s.id)} disabled={!!loadingSeasonOps[s.id]} className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50">
+                            {loadingSeasonOps[s.id] === 'activating' ? '⏳' : 'Activate'}
                           </button>
                         )}
                         {s.isActive && (
-                          <button onClick={() => endSeason(s.id)} disabled={loadingSeason} className="btn-ghost text-xs py-1.5 px-3 text-yellow-400 border-yellow-800/50">
-                            {loadingSeason ? '⏳' : 'End Season'}
+                          <button onClick={() => endSeason(s.id)} disabled={!!loadingSeasonOps[s.id]} className="btn-ghost text-xs py-1.5 px-3 text-yellow-400 border-yellow-800/50">
+                            {loadingSeasonOps[s.id] === 'ending' ? '⏳' : 'End Season'}
                           </button>
                         )}
                         <button onClick={() => deleteSeason(s.id)} className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50">
@@ -709,6 +983,79 @@ export default function Admin() {
         </div>
       )}
 
+      {/* ═══════════════════════════════ ALLIANCES ═════════════════════════════ */}
+      {tab === 'alliances' && (
+        <div className="px-4 py-4 space-y-4 pb-24">
+          {allianceMsg && (
+            <div className={`text-xs text-center py-2 ${allianceMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{allianceMsg}</div>
+          )}
+          {loadingAlliances ? (
+            <div className="text-center py-10 text-slate-500 text-sm">Loading alliances…</div>
+          ) : alliances.length === 0 ? (
+            <div className="text-center py-10 text-slate-600 text-sm">No alliances found</div>
+          ) : (
+            <div className="space-y-2">
+              {alliances.map((a) => (
+                <div key={a.id} className="card">
+                  <button onClick={() => setExpandedAlliance(expandedAlliance === a.id ? null : a.id)}
+                    className="w-full text-left flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-white">{a.name}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Leader: {a.leaderName ?? a.leader?.username ?? '?'} · {a.memberCount ?? a.members?.length ?? 0} members
+                      </div>
+                    </div>
+                    <span className="text-slate-500 text-sm">{expandedAlliance === a.id ? '▲' : '▼'}</span>
+                  </button>
+
+                  {expandedAlliance === a.id && (
+                    <div className="mt-3 border-t border-space-600/30 pt-3 space-y-2">
+                      {/* Members list */}
+                      {(a.members ?? []).length === 0 ? (
+                        <div className="text-xs text-slate-600 text-center py-2">No members loaded</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {(a.members ?? []).map((m) => (
+                            <div key={m.id ?? m.userId} className="flex items-center justify-between rounded-lg bg-space-700/50 px-3 py-2">
+                              <div>
+                                <span className="text-xs text-white">{m.username ?? m.user?.username ?? '?'}</span>
+                                {(m.role === 'leader' || m.userId === a.leaderId || m.id === a.leaderId) && (
+                                  <span className="ml-1.5 text-[9px] text-yellow-400">👑 Leader</span>
+                                )}
+                              </div>
+                              <div className="flex gap-1.5">
+                                {m.role !== 'leader' && m.userId !== a.leaderId && m.id !== a.leaderId && (
+                                  <>
+                                    <button onClick={() => transferLeadership(a.id, m.userId ?? m.id)}
+                                      className="text-[10px] px-2 py-0.5 rounded border bg-yellow-900/30 text-yellow-400 border-yellow-800/50 hover:bg-yellow-800/40">
+                                      👑 Lead
+                                    </button>
+                                    <button onClick={() => kickMember(a.id, m.userId ?? m.id)}
+                                      className="text-[10px] px-2 py-0.5 rounded border bg-red-900/30 text-red-400 border-red-800/50 hover:bg-red-800/40">
+                                      Kick
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Disband button */}
+                      <button onClick={() => disbandAlliance(a.id)}
+                        className="w-full bg-red-900/40 border border-red-700/50 text-red-300 text-xs py-2 rounded-xl font-semibold hover:bg-red-800/50 transition-colors mt-2">
+                        🗑 Disband Alliance
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ═══════════════════════════════ SERVER ════════════════════════════════ */}
       {tab === 'server' && (
         <div className="px-4 py-4 space-y-4">
@@ -732,6 +1079,34 @@ export default function Admin() {
             </div>
             {protectionMsg && <div className={`text-xs ${protectionMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{protectionMsg}</div>}
           </div>
+
+          {/* Announcement banner */}
+          <div className="card space-y-3">
+            <p className="section-title">📢 Announcement Banner</p>
+            <p className="text-xs text-slate-400">Set a banner message visible to all players.</p>
+            <input
+              className="input w-full text-sm py-2.5"
+              placeholder="Announcement text…"
+              value={announcementDraft}
+              onChange={(e) => setAnnouncementDraft(e.target.value)}
+            />
+            {announcementDraft && (
+              <div className="rounded-lg bg-yellow-900/30 border border-yellow-700/40 px-3 py-2">
+                <div className="text-[10px] text-yellow-500 mb-1">Preview:</div>
+                <div className="text-xs text-yellow-200">{announcementDraft}</div>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={saveAnnouncement} className="btn-primary flex-1 text-sm py-2.5">
+                {announcementDraft ? 'Update Announcement' : 'Clear Announcement'}
+              </button>
+              {announcement && (
+                <button onClick={() => { setAnnouncementDraft(''); }} className="btn-ghost text-sm py-2.5 px-4">Clear</button>
+              )}
+            </div>
+            {announcementMsg && <div className={`text-xs ${announcementMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{announcementMsg}</div>}
+          </div>
+
           <div className="card bg-red-950/20 border-red-800/30 space-y-3">
             <p className="section-title text-red-400">⚠️ Reset Gameplay</p>
             <p className="text-xs text-slate-400">
@@ -800,6 +1175,22 @@ export default function Admin() {
                 {label}
               </button>
             ))}
+          </div>
+
+          {/* Config actions */}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={exportConfig}
+              className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50 hover:bg-green-900/30">
+              📥 Export Config
+            </button>
+            <label className="btn-ghost text-xs py-1.5 px-3 text-blue-400 border-blue-800/50 hover:bg-blue-900/30 cursor-pointer">
+              📤 Import Config
+              <input type="file" accept=".json" className="hidden" onChange={(e) => { importConfig(e.target.files[0]); e.target.value = ''; }} />
+            </label>
+            <button onClick={resetConfigToDefaults}
+              className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
+              🔄 Reset to Defaults
+            </button>
           </div>
 
           {!gameConfig ? (

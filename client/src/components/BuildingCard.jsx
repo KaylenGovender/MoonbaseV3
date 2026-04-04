@@ -1,16 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatCountdown } from '../utils/format.js';
-
-const BUILDING_META = {
-  SILO:              { icon: '🏗️', label: 'Silo',             desc: 'Increases resource storage' },
-  BUNKER:            { icon: '🛡️', label: 'Bunker',           desc: 'Protects resources from raids' },
-  RESEARCH_LAB:      { icon: '🔬', label: 'Research Lab',     desc: 'Unlocks extra base at level 20' },
-  RADAR:             { icon: '📡', label: 'Radar',            desc: 'Increases map visibility range' },
-  WAR_ROOM:          { icon: '⚔️', label: 'War Room',         desc: 'Train military units' },
-  CONSTRUCTION_YARD: { icon: '🔧', label: 'Construction Yard',desc: 'Reduces build times (-1%/level)' },
-  ALLIANCE:          { icon: '🤝', label: 'Alliance',         desc: 'Determines max alliance size' },
-  TRADE_POD:         { icon: '📦', label: 'Trade Pod',        desc: 'Send resources to allies' },
-};
+import { BUILDING_META } from '../utils/gameConstants.js';
 
 export default function BuildingCard({ building, onClick }) {
   const meta  = BUILDING_META[building.type] ?? { icon: '🏢', label: building.type, desc: '' };

@@ -32,12 +32,12 @@ const DEFAULT_UNIT_STATS = {
   GUNSHIP:   { attack:  120, defense:   40, carryCapacity:   80, speed: 150, buildTime:  120, cost: { oxygen: 350, water: 300, iron: 230, helium3: 200 } },
   TANK:      { attack:  250, defense:  250, carryCapacity:  120, speed: 120, buildTime:  300, cost: { oxygen: 450, water: 400, iron: 500, helium3: 300 } },
   HARVESTER: { attack:   10, defense:   10, carryCapacity:  300, speed: 250, buildTime:  180, cost: { oxygen: 200, water: 250, iron: 350, helium3: 400 } },
-  DRONE:     { attack:  100, defense:   30, carryCapacity:   20, speed: 100, buildTime:   20, cost: { oxygen: 300, water: 250, iron: 220, helium3: 230 } },
-  TITAN:     { attack: 5000, defense: 5000, carryCapacity: 1000, speed:  60, buildTime: 3600, cost: { oxygen: 6000, water: 5000, iron: 7000, helium3: 4000 } },
+  DRONE:     { attack:   60, defense:   15, carryCapacity:   10, speed: 120, buildTime:   12, cost: { oxygen:  80, water:  60, iron: 100, helium3:  60 } },
+  TITAN:     { attack: 3000, defense: 3000, carryCapacity:  800, speed:  60, buildTime: 3600, cost: { oxygen: 10000, water: 8000, iron: 12000, helium3: 8000 } },
 };
 
 const DEFAULT_HELIUM_UPKEEP = {
-  MOONBUGGY: 0.5, GUNSHIP: 1.0, TANK: 2.0, HARVESTER: 0.5, DRONE: 0.5, TITAN: 50.0,
+  MOONBUGGY: 0.5, GUNSHIP: 1.0, TANK: 2.0, HARVESTER: 0.5, DRONE: 0.2, TITAN: 30.0,
 };
 
 const DEFAULT_SPECIAL = {
@@ -113,6 +113,18 @@ export async function updateGameConfigSection(section, data) {
   });
 }
 
+export async function resetGameConfig() {
+  _config = {
+    buildingBases:    JSON.parse(JSON.stringify(DEFAULT_BUILDING_BASES)),
+    mineBases:        JSON.parse(JSON.stringify(DEFAULT_MINE_BASES)),
+    mineRatePerLevel: { ...DEFAULT_MINE_RATE_PER_LEVEL },
+    unitStats:        JSON.parse(JSON.stringify(DEFAULT_UNIT_STATS)),
+    heliumUpkeep:     { ...DEFAULT_HELIUM_UPKEEP },
+    special:          { ...DEFAULT_SPECIAL },
+  };
+  await prisma.serverConfig.deleteMany({ where: { key: 'game_config' } });
+}
+
 // ─── Level-config generators (same formulas as original gameConfig.js) ────────
 
 function buildingLevels(bases) {
@@ -123,7 +135,7 @@ function buildingLevels(bases) {
       water:       Math.round(bases.water   * m),
       iron:        Math.round(bases.iron    * m),
       helium3:     Math.round(bases.helium3 * m),
-      timeSeconds: Math.round(bases.time    * Math.pow(1.8, i)),
+      timeSeconds: Math.round(bases.time    * Math.pow(1.35, i)),
     };
   });
 }
@@ -179,7 +191,7 @@ export function getBasePlacement() {
 }
 
 export function constructionYardReduction(level) {
-  return Math.min(level * 1, 20); // not configurable yet but centralised here
+  return Math.min(level * 1.5, 30);
 }
 
 export { getRadarRange as radarRange };

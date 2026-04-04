@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore.js';
 import { useSocketStore } from './store/socketStore.js';
@@ -60,8 +60,23 @@ function AuthLayout({ children }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // Announcement banner
+  const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    fetch('/api/announcement').then(r => r.json()).then(d => setAnnouncement(d.text ?? '')).catch(() => {});
+    const iv = setInterval(() => {
+      fetch('/api/announcement').then(r => r.json()).then(d => setAnnouncement(d.text ?? '')).catch(() => {});
+    }, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
+      {announcement && (
+        <div className="bg-yellow-900/80 border-b border-yellow-600/50 text-yellow-200 text-xs text-center px-4 py-2 flex items-center justify-center gap-2">
+          <span>📢</span> <span>{announcement}</span>
+        </div>
+      )}
       {children}
       <NavBar />
     </div>

@@ -3,7 +3,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
 import { ALL_BUILDING_TYPES, ALL_UNIT_TYPES, MINE_SLOTS } from '../config/gameConfig.js';
 import { getConfig, setConfig } from '../services/serverConfig.js';
-import { getGameConfig, updateGameConfigSection } from '../services/gameConfigService.js';
+import { getGameConfig, updateGameConfigSection, resetGameConfig } from '../services/gameConfigService.js';
 import { awardVictoryMedals } from '../services/medalService.js';
 
 const ADMIN_USERNAME = 'Ulquiorra07';
@@ -606,6 +606,225 @@ router.put('/game-config/:section', requireAuth, requireAdmin, async (req, res) 
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// POST /admin/game-config/reset — reset all config to hardcoded defaults
+router.post('/game-config/reset', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    await resetGameConfig();
+    res.json({ ok: true, config: getGameConfig() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /admin/game-config/export — download full config as JSON
+router.get('/game-config/export', requireAuth, requireAdmin, (_req, res) => {
+  res.setHeader('Content-Disposition', 'attachment; filename=game-config.json');
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(getGameConfig(), null, 2));
+});
+
+// POST /admin/game-config/import — upload and apply full config JSON
+router.post('/game-config/import', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const sections = req.body;
+    if (!sections || typeof sections !== 'object') return res.status(400).json({ error: 'Invalid config JSON' });
+    for (const [section, data] of Object.entries(sections)) {
+      await updateGameConfigSection(section, data);
+    }
+    res.json({ ok: true, config: getGameConfig() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Dashboard ──────────────────────────────────────────────────────────────────
+router.get('/dashboard', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const activeSeason = await prisma.season.findFirst({ where: { isActive: true } });
+    const [totalPlayers, totalBases, activeAttacks, recentRegistrations, totalAlliances] = await Promise.all([
+      prisma.user.count(),
+      prisma.base.count(activeSeason ? { where: { seasonId: activeSeason.id } } : {}),
+      prisma.attack.count({ where: { status: { in: ['IN_FLIGHT', 'RETURNING'] } } }),
+      prisma.user.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }),
+      activeSeason ? prisma.alliance.count({ where: { seasonId: activeSeason.id } }) : 0,
+    ]);
+    res.json({
+      totalPlayers,
+      totalBases,
+      activeAttacks,
+      recentRegistrations,
+      totalAlliances,
+      activeSeason: activeSeason ? { id: activeSeason.id, name: activeSeason.name, startDate: activeSeason.startDate, endDate: activeSeason.endDate } : null,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Active Attacks ─────────────────────────────────────────────────────────────
+router.get('/attacks', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 20;
+    const where = req.query.active === 'true'
+      ? { status: { in: ['IN_FLIGHT', 'RETURNING'] } }
+      : {};
+    const [rows, total] = await Promise.all([
+      prisma.attack.findMany({
+        where,
+        include: {
+          attackerBase: { select: { name: true, user: { select: { username: true } } } },
+          defenderBase: { select: { name: true, user: { select: { username: true } } } },
+        },
+        orderBy: { launchTime: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.attack.count({ where }),
+    ]);
+    res.json({ rows, total, page, pages: Math.ceil(total / limit) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Battle Reports (admin) ─────────────────────────────────────────────────────
+router.get('/battle-reports', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const limit = 20;
+    const rows = await prisma.battleReport.findMany({
+      include: {
+        attack: {
+          select: {
+            attackerBase: { select: { name: true, user: { select: { username: true } } } },
+            defenderBase: { select: { name: true, user: { select: { username: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    res.json({ rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Alliance Management ────────────────────────────────────────────────────────
+router.get('/alliances', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const activeSeason = await prisma.season.findFirst({ where: { isActive: true } });
+    const where = activeSeason ? { seasonId: activeSeason.id } : {};
+    const rows = await prisma.alliance.findMany({
+      where,
+      include: {
+        leader: { select: { id: true, username: true } },
+        members: { include: { user: { select: { id: true, username: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/alliances/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const allianceId = req.params.id;
+    await prisma.chatMessage.deleteMany({ where: { allianceId } });
+    await prisma.allianceInvite.deleteMany({ where: { allianceId } });
+    await prisma.allianceMember.deleteMany({ where: { allianceId } });
+    await prisma.alliance.delete({ where: { id: allianceId } });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/alliances/:id/members/:userId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await prisma.allianceMember.delete({
+      where: { allianceId_userId: { allianceId: req.params.id, userId: req.params.userId } },
+    });
+    // If alliance is empty after removal, clean up
+    const remaining = await prisma.allianceMember.count({ where: { allianceId: req.params.id } });
+    if (remaining === 0) {
+      await prisma.chatMessage.deleteMany({ where: { allianceId: req.params.id } });
+      await prisma.allianceInvite.deleteMany({ where: { allianceId: req.params.id } });
+      await prisma.alliance.delete({ where: { id: req.params.id } });
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/alliances/:id/leader', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const row = await prisma.alliance.update({
+      where: { id: req.params.id },
+      data: { leaderId: userId },
+    });
+    res.json({ row });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Announcement ───────────────────────────────────────────────────────────────
+router.get('/announcement', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const value = await getConfig('announcement', '');
+    res.json({ text: value });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/announcement', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { text } = req.body;
+    await setConfig('announcement', text ?? '');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Quick Actions ──────────────────────────────────────────────────────────────
+router.post('/players/:userId/starter-kit', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const bases = await prisma.base.findMany({ where: { userId: req.params.userId }, select: { id: true } });
+    for (const b of bases) {
+      await prisma.resourceState.upsert({
+        where: { baseId: b.id },
+        update: { oxygen: 10000, water: 10000, iron: 10000, helium3: 10000 },
+        create: { baseId: b.id, oxygen: 10000, water: 10000, iron: 10000, helium3: 10000 },
+      });
+    }
+    res.json({ ok: true, basesUpdated: bases.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/players/:userId/max-buildings', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const bases = await prisma.base.findMany({ where: { userId: req.params.userId }, select: { id: true } });
+    for (const b of bases) {
+      await prisma.building.updateMany({ where: { baseId: b.id }, data: { level: 20, upgradeEndsAt: null } });
+      await prisma.mine.updateMany({ where: { baseId: b.id }, data: { level: 20, upgradeEndsAt: null } });
+      await recalcPopulationPoints(b.id);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/players/:userId/reset-bases', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const bases = await prisma.base.findMany({ where: { userId: req.params.userId }, select: { id: true } });
+    const baseIds = bases.map((b) => b.id);
+    if (baseIds.length > 0) {
+      const attacks = await prisma.attack.findMany({
+        where: { OR: [{ attackerBaseId: { in: baseIds } }, { defenderBaseId: { in: baseIds } }] },
+        select: { id: true },
+      });
+      const attackIds = attacks.map((a) => a.id);
+      if (attackIds.length > 0) {
+        await prisma.battleReport.deleteMany({ where: { attackId: { in: attackIds } } });
+        await prisma.attack.deleteMany({ where: { id: { in: attackIds } } });
+      }
+      await prisma.tradePod.deleteMany({ where: { OR: [{ fromBaseId: { in: baseIds } }, { toBaseId: { in: baseIds } }] } });
+      await prisma.reinforcement.deleteMany({ where: { OR: [{ fromBaseId: { in: baseIds } }, { toBaseId: { in: baseIds } }] } });
+      await prisma.buildQueue.deleteMany({ where: { baseId: { in: baseIds } } });
+      await prisma.unitStock.deleteMany({ where: { baseId: { in: baseIds } } });
+      await prisma.mine.deleteMany({ where: { baseId: { in: baseIds } } });
+      await prisma.building.deleteMany({ where: { baseId: { in: baseIds } } });
+      await prisma.resourceState.deleteMany({ where: { baseId: { in: baseIds } } });
+      await prisma.base.deleteMany({ where: { id: { in: baseIds } } });
+    }
+    res.json({ ok: true, basesDeleted: baseIds.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 export default router;

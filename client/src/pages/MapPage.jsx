@@ -267,7 +267,6 @@ export default function MapPage() {
           {!selectedBase.isProtected && (
             <div className="flex gap-2">
               <button onClick={() => setShowAttack(true)} className="btn-danger flex-1 text-sm">⚔️ Attack</button>
-              <button onClick={() => setShowChat(true)} className="btn-ghost flex-1 text-sm">💬 Message</button>
             </div>
           )}
         </div>
