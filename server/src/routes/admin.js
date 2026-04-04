@@ -706,7 +706,7 @@ router.get('/battle-reports', requireAuth, requireAdmin, async (req, res) => {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { reportedAt: 'desc' },
       take: limit,
     });
     res.json({ rows });
