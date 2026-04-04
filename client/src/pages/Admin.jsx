@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
+import { BUILDING_META } from '../utils/gameConstants.js';
+import UnitIcon from '../components/UnitIcon.jsx';
 
 /** Format a UTC ISO string as a value suitable for <input type="datetime-local"> (browser-local time). */
 function toLocalInput(utcIso) {
@@ -17,12 +19,8 @@ function localToUTC(localStr) {
   return new Date(localStr).toISOString();
 }
 
-const BUILDING_ICONS = {
-  SILO: '🏗️', BUNKER: '🛡️', RESEARCH_LAB: '🔬', RADAR: '📡',
-  WAR_ROOM: '⚔️', CONSTRUCTION_YARD: '🏭', ALLIANCE: '🤝', TRADE_POD: '🚀',
-};
+const BUILDING_ICONS = Object.fromEntries(Object.entries(BUILDING_META).map(([k, v]) => [k, v.icon]));
 const MINE_ICONS = { OXYGEN: '💨', WATER: '💧', IRON: '⚙️', HELIUM3: '☢️' };
-const UNIT_ICONS = { MOONBUGGY: '🏎️', GUNSHIP: '🚀', TANK: '🦾', HARVESTER: '🚜', DRONE: '🛸', TITAN: '👾' };
 const RES_LABELS = { oxygen: '💨 O₂', water: '💧 H₂O', iron: '⚙️ Iron', helium3: '☢️ He3' };
 
 // Bottom-sheet style inline edit modal
@@ -800,7 +798,7 @@ export default function Admin() {
                             <button key={u.id} onClick={() => openEdit(`${u.type} count`, u.count,
                                 (v) => api.put(`/admin/units/${u.id}`, { count: parseInt(v) }))}
                               className="flex items-center justify-between active:bg-space-700/40 rounded px-1 -mx-1">
-                              <span className="text-[11px] text-slate-400">{UNIT_ICONS[u.type] ?? '⚔️'} {u.type}</span>
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1"><UnitIcon type={u.type} size={14} /> {u.type}</span>
                               <span className="text-[11px] text-blue-300 font-mono">{u.count}</span>
                             </button>
                           ))}
@@ -1006,7 +1004,7 @@ export default function Admin() {
                     <div>
                       <div className="text-sm font-semibold text-white">{a.name}</div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
-                        Leader: {a.leaderName ?? a.leader?.username ?? '?'} · {a.memberCount ?? a.members?.length ?? 0} members
+                        Leader: {a.leader?.username ?? '?'} · {a.members?.length ?? 0} members
                       </div>
                     </div>
                     <span className="text-slate-500 text-sm">{expandedAlliance === a.id ? '▲' : '▼'}</span>
@@ -1022,19 +1020,19 @@ export default function Admin() {
                           {(a.members ?? []).map((m) => (
                             <div key={m.id ?? m.userId} className="flex items-center justify-between rounded-lg bg-space-700/50 px-3 py-2">
                               <div>
-                                <span className="text-xs text-white">{m.username ?? m.user?.username ?? '?'}</span>
-                                {(m.role === 'leader' || m.userId === a.leaderId || m.id === a.leaderId) && (
+                                <span className="text-xs text-white">{m.user?.username ?? '?'}</span>
+                                {(m.userId === a.leaderId) && (
                                   <span className="ml-1.5 text-[9px] text-yellow-400">👑 Leader</span>
                                 )}
                               </div>
                               <div className="flex gap-1.5">
-                                {m.role !== 'leader' && m.userId !== a.leaderId && m.id !== a.leaderId && (
+                                {m.userId !== a.leaderId && (
                                   <>
-                                    <button onClick={() => transferLeadership(a.id, m.userId ?? m.id)}
+                                    <button onClick={() => transferLeadership(a.id, m.userId)}
                                       className="text-[10px] px-2 py-0.5 rounded border bg-yellow-900/30 text-yellow-400 border-yellow-800/50 hover:bg-yellow-800/40">
                                       👑 Lead
                                     </button>
-                                    <button onClick={() => kickMember(a.id, m.userId ?? m.id)}
+                                    <button onClick={() => kickMember(a.id, m.userId)}
                                       className="text-[10px] px-2 py-0.5 rounded border bg-red-900/30 text-red-400 border-red-800/50 hover:bg-red-800/40">
                                       Kick
                                     </button>
@@ -1311,7 +1309,7 @@ export default function Admin() {
                   {Object.entries(gameConfig.unitStats ?? {}).map(([unit, s]) => (
                     <div key={unit} className="card space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-white">{UNIT_ICONS[unit] ?? '⚔️'} {unit}</p>
+                        <p className="text-xs font-semibold text-white flex items-center gap-1"><UnitIcon type={unit} size={16} /> {unit}</p>
                         <span className="text-[9px] text-slate-500">tap value to edit ✏️</span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">

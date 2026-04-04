@@ -46,4 +46,40 @@ router.get('/dm/:userId', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/chat/conversations — list all DM conversations for current user
+router.get('/conversations', requireAuth, async (req, res) => {
+  try {
+    // Find all distinct DM partners with the latest message
+    const sent = await prisma.chatMessage.findMany({
+      where: { fromUserId: req.user.id, allianceId: null, toUserId: { not: null } },
+      select: { toUserId: true, message: true, sentAt: true, toUser: { select: { id: true, username: true } } },
+      orderBy: { sentAt: 'desc' },
+    });
+    const received = await prisma.chatMessage.findMany({
+      where: { toUserId: req.user.id, allianceId: null },
+      select: { fromUserId: true, message: true, sentAt: true, fromUser: { select: { id: true, username: true } } },
+      orderBy: { sentAt: 'desc' },
+    });
+
+    const convos = {};
+    for (const m of sent) {
+      const id = m.toUserId;
+      if (!convos[id] || m.sentAt > convos[id].sentAt) {
+        convos[id] = { userId: id, username: m.toUser.username, lastMessage: m.message, sentAt: m.sentAt };
+      }
+    }
+    for (const m of received) {
+      const id = m.fromUserId;
+      if (!convos[id] || m.sentAt > convos[id].sentAt) {
+        convos[id] = { userId: id, username: m.fromUser.username, lastMessage: m.message, sentAt: m.sentAt };
+      }
+    }
+
+    const list = Object.values(convos).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    res.json({ conversations: list });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

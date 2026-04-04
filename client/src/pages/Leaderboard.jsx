@@ -4,6 +4,7 @@ import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import PlayerProfileModal from '../components/PlayerProfileModal.jsx';
+import ChatList from '../components/ChatList.jsx';
 
 const TABS = [
   { key: 'alliances', label: 'Alliances',   icon: '🤝' },
@@ -47,6 +48,7 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
   const [allianceModal, setAllianceModal] = useState(null); // { name, members }
+  const [showChats, setShowChats] = useState(false);
   const [, tick] = useState(0);
 
   // Tick every second for countdown
@@ -98,8 +100,9 @@ export default function Leaderboard() {
 
   return (
     <div className="page">
-      <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
+      <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center justify-between">
         <h1 className="text-sm font-semibold text-white">🏆 Leaderboards</h1>
+        <button onClick={() => setShowChats(true)} className="text-lg hover:scale-110 transition-transform">💬</button>
       </div>
 
       {/* Season info banner */}
@@ -319,6 +322,8 @@ export default function Leaderboard() {
           </div>
         </div>
       )}
+
+      {showChats && <ChatList onClose={() => setShowChats(false)} />}
     </div>
   );
 }

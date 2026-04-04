@@ -79,8 +79,12 @@ export const useSocketStore = create((set, get) => ({
     });
 
     // Alliance chat notification — set dot when message arrives and user isn't on alliance page
-    socket.on('chat:message', () => {
-      if (!window.location.pathname.startsWith('/alliance')) {
+    socket.on('chat:message', (msg) => {
+      if (msg.allianceId && !window.location.pathname.startsWith('/alliance')) {
+        set({ allianceNotif: true });
+      }
+      // DM messages also trigger alliance notif (chat is accessed from leaderboard)
+      if (!msg.allianceId && msg.toUserId) {
         set({ allianceNotif: true });
       }
     });

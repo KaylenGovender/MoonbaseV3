@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
+import { useAuthStore } from '../store/authStore.js';
+import DMChat from './DMChat.jsx';
 
 export default function PlayerProfileModal({ userId, username, onClose }) {
+  const currentUser = useAuthStore((s) => s.user);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -34,6 +38,18 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
           </div>
           <button onClick={onClose} className="text-slate-500 text-xl px-1">✕</button>
         </div>
+
+        {/* Message button — don't show for own profile */}
+        {userId !== currentUser?.id && (
+          <div className="px-5 pt-3">
+            <button
+              onClick={() => setShowChat(true)}
+              className="w-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-xs py-2 rounded-xl font-semibold hover:bg-blue-800/50 transition-colors flex items-center justify-center gap-1.5"
+            >
+              💬 Message
+            </button>
+          </div>
+        )}
 
         <div className="p-5 space-y-4">
           {loading ? (
@@ -76,6 +92,14 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
           )}
         </div>
       </div>
+
+      {showChat && (
+        <DMChat
+          targetUserId={userId}
+          targetUsername={username}
+          onClose={() => setShowChat(false)}
+        />
+      )}
     </div>
   );
 }
