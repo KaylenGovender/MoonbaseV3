@@ -13,64 +13,60 @@ function generateMoonSurface(size) {
   c.height = size;
   const ctx = c.getContext('2d');
 
-  // Base lunar gray
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, 0, size, size);
 
-  // Seeded pseudo-random for consistent texture
   function seededRand(seed) {
     let s = seed;
     return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
   }
-
   const rand = seededRand(42);
+
+  // Wrap-draw helper: draws at (x,y) and wrapped copies so edges tile seamlessly
+  const offsets = [0, -size, size];
+  function wrapCircle(cx, cy, r, drawFn) {
+    for (const ox of offsets) for (const oy of offsets) {
+      const wx = cx + ox, wy = cy + oy;
+      if (wx + r < 0 || wx - r > size || wy + r < 0 || wy - r > size) continue;
+      drawFn(wx, wy, r);
+    }
+  }
 
   // Large craters
   for (let i = 0; i < 30; i++) {
-    const cx = rand() * size;
-    const cy = rand() * size;
-    const r = 8 + rand() * 25;
-    // Crater shadow (darker inside)
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grad.addColorStop(0, 'rgba(8,8,20,0.5)');
-    grad.addColorStop(0.7, 'rgba(12,12,28,0.3)');
-    grad.addColorStop(1, 'rgba(30,30,50,0.0)');
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    // Crater rim (lighter ring)
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(45,45,70,${0.2 + rand() * 0.15})`;
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
+    const cx = rand() * size, cy = rand() * size, r = 8 + rand() * 25;
+    const rimAlpha = 0.2 + rand() * 0.15;
+    wrapCircle(cx, cy, r, (wx, wy, wr) => {
+      const grad = ctx.createRadialGradient(wx, wy, 0, wx, wy, wr);
+      grad.addColorStop(0, 'rgba(8,8,20,0.5)');
+      grad.addColorStop(0.7, 'rgba(12,12,28,0.3)');
+      grad.addColorStop(1, 'rgba(30,30,50,0.0)');
+      ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+      ctx.fillStyle = grad; ctx.fill();
+      ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(45,45,70,${rimAlpha})`; ctx.lineWidth = 0.8; ctx.stroke();
+    });
   }
 
   // Small craters
   for (let i = 0; i < 80; i++) {
-    const cx = rand() * size;
-    const cy = rand() * size;
-    const r = 2 + rand() * 6;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(10,10,24,${0.3 + rand() * 0.2})`;
-    ctx.fill();
-    ctx.strokeStyle = `rgba(40,40,60,${0.15 + rand() * 0.1})`;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+    const cx = rand() * size, cy = rand() * size, r = 2 + rand() * 6;
+    const fa = 0.3 + rand() * 0.2, sa = 0.15 + rand() * 0.1;
+    wrapCircle(cx, cy, r, (wx, wy, wr) => {
+      ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(10,10,24,${fa})`; ctx.fill();
+      ctx.strokeStyle = `rgba(40,40,60,${sa})`; ctx.lineWidth = 0.5; ctx.stroke();
+    });
   }
 
   // Dust/rocks scatter
   for (let i = 0; i < 300; i++) {
-    const dx = rand() * size;
-    const dy = rand() * size;
-    const dr = 0.5 + rand() * 1.5;
-    const brightness = 20 + Math.floor(rand() * 25);
-    ctx.beginPath();
-    ctx.arc(dx, dy, dr, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${brightness},${brightness},${brightness + 10},${0.15 + rand() * 0.2})`;
-    ctx.fill();
+    const dx = rand() * size, dy = rand() * size, dr = 0.5 + rand() * 1.5;
+    const b = 20 + Math.floor(rand() * 25), a = 0.15 + rand() * 0.2;
+    wrapCircle(dx, dy, dr, (wx, wy, wr) => {
+      ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${b},${b},${b + 10},${a})`; ctx.fill();
+    });
   }
 
   return c;
@@ -80,7 +76,7 @@ function generateMoonSurface(size) {
 function drawHexBase(ctx, x, y, r, fillColor, initials, isOwn, isAlly) {
   // Glow ring
   if (isOwn || isAlly) {
-    const glowR = r + 5;
+    const glowR = r + 4;
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI / 3) * i - Math.PI / 6;
@@ -104,7 +100,6 @@ function drawHexBase(ctx, x, y, r, fillColor, initials, isOwn, isAlly) {
   ctx.closePath();
   ctx.fillStyle = fillColor;
   ctx.fill();
-  // Subtle border
   ctx.strokeStyle = 'rgba(255,255,255,0.15)';
   ctx.lineWidth = 0.5;
   ctx.stroke();
@@ -113,18 +108,17 @@ function drawHexBase(ctx, x, y, r, fillColor, initials, isOwn, isAlly) {
   const topY = y - r;
   ctx.beginPath();
   ctx.moveTo(x, topY);
-  ctx.lineTo(x, topY - 4);
+  ctx.lineTo(x, topY - 5);
   ctx.strokeStyle = fillColor;
   ctx.lineWidth = 1;
   ctx.stroke();
-  // Antenna tip dot
   ctx.beginPath();
-  ctx.arc(x, topY - 4.5, 1, 0, Math.PI * 2);
+  ctx.arc(x, topY - 5.5, 1.2, 0, Math.PI * 2);
   ctx.fillStyle = fillColor;
   ctx.fill();
 
-  // Initials
-  ctx.font = 'bold 6px Inter,sans-serif';
+  // Initials — sized to fit inside hex
+  ctx.font = `bold ${Math.round(r * 0.95)}px Inter,sans-serif`;
   ctx.fillStyle = '#0a1628';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -312,7 +306,7 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
     for (const base of (bases ?? [])) {
       const bx = kmToWorld(base.x, cs);
       const by = kmToWorld(base.y, cs);
-      const r  = 5;
+      const r  = 8;
       const isAlly = (allianceBaseIds ?? []).includes(base.id) || base.isAlly;
       const fillColor = base.isOwn ? '#38bdf8'
         : isAlly ? '#4ade80'
