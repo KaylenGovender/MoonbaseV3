@@ -8,3 +8,4 @@ build/
 Thumbs.db
 coverage/
 .nyc_output/
+server/_test.cjs

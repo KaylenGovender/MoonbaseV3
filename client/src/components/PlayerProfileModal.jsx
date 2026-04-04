@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import { useAuthStore } from '../store/authStore.js';
-import DMChat from './DMChat.jsx';
 
 export default function PlayerProfileModal({ userId, username, onClose }) {
   const currentUser = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -19,14 +19,9 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
       .finally(() => setLoading(false));
   }, [userId]);
 
-  if (showChat) {
-    return (
-      <DMChat
-        targetUserId={userId}
-        targetUsername={username}
-        onClose={() => setShowChat(false)}
-      />
-    );
+  function openChat() {
+    onClose();
+    navigate(`/chat/${userId}?name=${encodeURIComponent(username)}`);
   }
 
   return (
@@ -53,7 +48,7 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
         {userId !== currentUser?.id && (
           <div className="px-5 pt-3">
             <button
-              onClick={() => setShowChat(true)}
+              onClick={openChat}
               className="w-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-xs py-2 rounded-xl font-semibold hover:bg-blue-800/50 transition-colors flex items-center justify-center gap-1.5"
             >
               💬 Message

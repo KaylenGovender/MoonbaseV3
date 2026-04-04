@@ -144,8 +144,11 @@ export default function Admin() {
     setLoadingAlliances(true);
     try {
       const res = await api.get('/admin/alliances');
+      console.log('[Admin] alliances response:', res);
       setAlliances(res.alliances ?? res.rows ?? []);
-    } catch {}
+    } catch (err) {
+      console.error('[Admin] Failed to load alliances:', err);
+    }
     setLoadingAlliances(false);
   }
   useEffect(() => { if (tab === 'alliances') loadAlliances(); }, [tab]);

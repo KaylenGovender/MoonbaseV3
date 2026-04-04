@@ -12,6 +12,7 @@ import Leaderboard from './pages/Leaderboard.jsx';
 import ResourceDetail from './pages/ResourceDetail.jsx';
 import BuildingDetail from './pages/BuildingDetail.jsx';
 import Admin from './pages/Admin.jsx';
+import ChatPage from './pages/ChatPage.jsx';
 import NavBar from './components/NavBar.jsx';
 
 import { APP_VERSION } from './utils/gameConstants.js';
@@ -110,6 +111,8 @@ export default function App() {
                   <Route path="warroom"                      element={<WarRoom        />} />
                   <Route path="alliance"                     element={<Alliance       />} />
                   <Route path="leaderboard"                  element={<Leaderboard   />} />
+                  <Route path="chat"                         element={<ChatPage      />} />
+                  <Route path="chat/:targetId"               element={<ChatPage      />} />
                   <Route path="admin"                        element={<Admin          />} />
                   <Route path="*"                            element={<Navigate to="/base" replace />} />
                 </Routes>

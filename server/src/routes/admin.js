@@ -721,13 +721,23 @@ router.get('/alliances', requireAuth, requireAdmin, async (req, res) => {
     const rows = await prisma.alliance.findMany({
       where,
       include: {
-        leader: { select: { id: true, username: true } },
         members: { include: { user: { select: { id: true, username: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ alliances: rows });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    // Resolve leader usernames from members list (leader is always a member)
+    const alliances = rows.map((a) => {
+      const leaderMember = a.members.find((m) => m.userId === a.leaderId);
+      return {
+        ...a,
+        leader: leaderMember ? { id: leaderMember.userId, username: leaderMember.user?.username } : null,
+      };
+    });
+    res.json({ alliances });
+  } catch (e) {
+    console.error('[admin/alliances] Error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.delete('/alliances/:id', requireAuth, requireAdmin, async (req, res) => {
