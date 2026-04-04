@@ -15,6 +15,22 @@ export default function ActiveEvents({ base }) {
   const incomingAttacks = base.attacksReceived ?? [];
   const outgoingAttacks = base.attacksLaunched ?? [];
   const buildQueues     = base.buildQueues ?? [];
+
+  // Group per-unit buildQueue entries by unitType for display
+  // Each grouped entry shows how many are left and when the next one delivers
+  const groupedBuildQueues = Object.values(
+    buildQueues.reduce((acc, job) => {
+      if (!acc[job.unitType]) {
+        acc[job.unitType] = { ...job, _remaining: 0 };
+      }
+      acc[job.unitType]._remaining += job.quantity ?? 1;
+      // Show next delivery time (earliest completesAt)
+      if (!acc[job.unitType].completesAt || job.completesAt < acc[job.unitType].completesAt) {
+        acc[job.unitType].completesAt = job.completesAt;
+      }
+      return acc;
+    }, {})
+  );
   const tradePodsOut    = base.tradePodsOut ?? [];
   const tradePodsIn     = base.tradePodsIn ?? [];
 
@@ -27,7 +43,7 @@ export default function ActiveEvents({ base }) {
 
   const hasEvents =
     incomingAttacks.length || outgoingAttacks.length ||
-    buildQueues.length || tradePodsOut.length || tradePodsIn.length ||
+    groupedBuildQueues.length || tradePodsOut.length || tradePodsIn.length ||
     upgradingMines.length || upgradingBuildings.length;
 
   if (!hasEvents) return null;
@@ -87,15 +103,21 @@ export default function ActiveEvents({ base }) {
         />
       ))}
 
-      {buildQueues.map((job) => {
+      {groupedBuildQueues.map((job) => {
         const uMeta = UNIT_META[job.unitType];
+        // If remaining > 1 (grouped), show "Nx remaining, next in..."
+        // If single: "Building 1× unit"
+        const isGrouped = job._remaining > 1;
+        const countLabel = isGrouped
+          ? `${job._remaining}× ${uMeta?.label ?? formatUnitName(job.unitType)} remaining`
+          : `Building 1× ${uMeta?.label ?? formatUnitName(job.unitType)}`;
         return (
         <EventRow
-          key={job.id}
+          key={job.unitType}
           icon={<UnitIcon type={job.unitType} size={18} />}
           color="text-blue-400"
           bg="bg-blue-900/20 border-blue-800/40"
-          label={`Building ${job.quantity}× ${uMeta?.label ?? formatUnitName(job.unitType)}`}
+          label={countLabel}
           time={formatCountdown(job.completesAt)}
         />
         );

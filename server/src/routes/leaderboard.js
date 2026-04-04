@@ -6,7 +6,7 @@ const router = Router();
 
 async function getPopulationLeaderboard(seasonId, limit = 100) {
   const bases = await prisma.base.findMany({
-    where: { seasonId, isAdmin: false },
+    where: { seasonId },
     include: { user: { select: { id: true, username: true } } },
     orderBy: { populationPoints: 'desc' },
     take: limit * 3, // may have multiple bases per user
