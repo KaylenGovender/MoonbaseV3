@@ -5,6 +5,6 @@
     "restartPolicyMaxRetries": 5
   },
   "build": {
-    "buildCommand": "npm install && npm run build --workspace=client && npm run prisma:generate --workspace=server && npx prisma migrate deploy --schema=server/prisma/schema.prisma"
+    "buildCommand": "npm install && npm run build --workspace=client && npm run prisma:generate --workspace=server && npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss"
   }
 }
