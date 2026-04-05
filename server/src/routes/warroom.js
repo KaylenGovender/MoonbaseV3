@@ -102,9 +102,9 @@ router.post('/:baseId/queue', requireAuth, async (req, res) => {
     const reduction = constructionYardReduction(cyEffectiveLevel) / 100;
     const timePerUnit = Math.round(stats.buildTime * (1 - reduction));
 
-    // Queue after last pending job — create individual entries per unit for incremental delivery
+    // Queue after last pending job OF THE SAME TYPE — each unit type has its own independent queue
     const lastJob = await prisma.buildQueue.findFirst({
-      where: { baseId, completed: false },
+      where: { baseId, unitType, completed: false },
       orderBy: { completesAt: 'desc' },
     });
     const startAfter = lastJob ? new Date(lastJob.completesAt).getTime() : Date.now();
