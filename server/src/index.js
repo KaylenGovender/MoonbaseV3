@@ -13,7 +13,21 @@ const httpServer = http.createServer(app);
 const io = createSocketServer(httpServer);
 
 // Load dynamic game config overrides before starting game loops
-initGameConfig().then(() => {
+initGameConfig().then(async () => {
+  // One-time fix: ensure admin user's base is visible as a normal player base
+  try {
+    const adminUser = await prisma.user.findUnique({ where: { username: 'Ulquiorra07' } });
+    if (adminUser) {
+      const fixed = await prisma.base.updateMany({
+        where: { userId: adminUser.id, isAdmin: true },
+        data: { isAdmin: false },
+      });
+      if (fixed.count > 0) console.log(`[startup] Fixed ${fixed.count} admin base(s) → isAdmin: false (player base now visible)`);
+    }
+  } catch (e) {
+    console.error('[startup] Could not fix admin base visibility:', e.message);
+  }
+
   startTickEngine(io);
   startMedalScheduler(io);
   httpServer.listen(PORT, () => {

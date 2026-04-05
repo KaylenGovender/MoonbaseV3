@@ -28,7 +28,7 @@ async function seedAdminBase(seasonId) {
       name: `${ADMIN_USERNAME}'s Base`,
       x: 0,
       y: 0,
-      isAdmin: true,
+      isAdmin: false, // admin powers come from User.isAdmin, not the base flag
       isMain: true,
     },
   });
@@ -277,13 +277,14 @@ router.get('/bases', requireAuth, requireAdmin, async (req, res) => {
 
 router.put('/bases/:id', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { name, x, y } = req.body;
+    const { name, x, y, isAdmin } = req.body;
     const row = await prisma.base.update({
       where: { id: req.params.id },
       data: {
-        ...(name !== undefined && { name }),
-        ...(x    !== undefined && { x: parseFloat(x) }),
-        ...(y    !== undefined && { y: parseFloat(y) }),
+        ...(name    !== undefined && { name }),
+        ...(x       !== undefined && { x: parseFloat(x) }),
+        ...(y       !== undefined && { y: parseFloat(y) }),
+        ...(isAdmin !== undefined && { isAdmin: isAdmin === 'true' || isAdmin === true }),
       },
     });
     res.json({ row });
