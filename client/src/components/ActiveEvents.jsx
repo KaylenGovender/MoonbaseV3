@@ -21,12 +21,15 @@ export default function ActiveEvents({ base }) {
   const groupedBuildQueues = Object.values(
     buildQueues.reduce((acc, job) => {
       if (!acc[job.unitType]) {
-        acc[job.unitType] = { ...job, _remaining: 0 };
+        acc[job.unitType] = { ...job, _remaining: 0, _latestCompletes: job.completesAt };
       }
       acc[job.unitType]._remaining += job.quantity ?? 1;
-      // Show next delivery time (earliest completesAt)
+      // Track both next delivery (earliest) and total completion (latest)
       if (!acc[job.unitType].completesAt || job.completesAt < acc[job.unitType].completesAt) {
         acc[job.unitType].completesAt = job.completesAt;
+      }
+      if (job.completesAt > acc[job.unitType]._latestCompletes) {
+        acc[job.unitType]._latestCompletes = job.completesAt;
       }
       return acc;
     }, {})
@@ -105,12 +108,9 @@ export default function ActiveEvents({ base }) {
 
       {groupedBuildQueues.map((job, idx) => {
         const uMeta = UNIT_META[job.unitType];
-        // If remaining > 1 (grouped), show "Nx remaining, next in..."
-        // If single: "Building 1× unit"
-        const isGrouped = job._remaining > 1;
-        const countLabel = isGrouped
-          ? `${job._remaining}× ${uMeta?.label ?? formatUnitName(job.unitType)} remaining`
-          : `Building 1× ${uMeta?.label ?? formatUnitName(job.unitType)}`;
+        const countLabel = `${job._remaining}× ${uMeta?.label ?? formatUnitName(job.unitType)} remaining`;
+        // Show countdown to ALL units complete (latest), not just next
+        const allDoneTime = job._latestCompletes ?? job.completesAt;
         return (
         <EventRow
           key={`${job.unitType}-${idx}`}
@@ -118,7 +118,7 @@ export default function ActiveEvents({ base }) {
           color="text-blue-400"
           bg="bg-blue-900/20 border-blue-800/40"
           label={countLabel}
-          time={formatCountdown(job.completesAt)}
+          time={formatCountdown(allDoneTime)}
         />
         );
       })}

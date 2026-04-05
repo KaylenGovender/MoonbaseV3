@@ -63,10 +63,23 @@ export const useSocketStore = create((set, get) => ({
     });
 
     // Combat report — only for active base
-    socket.on('combat:report', ({ attackId, report, role }) => {
-      const baseId = role === 'attacker' ? report.attackerBaseId : report.defenderBaseId;
-      if (!baseId || isActiveBase(baseId)) {
-        useBaseStore.getState().addBattleReport(report);
+    socket.on('combat:report', ({ attackId, report, role, defenderBaseName }) => {
+      if (role === 'reinforcer') {
+        // Reinforcement owner gets a report about their units at another base
+        const losses = report.reinforcementOwnerLosses ?? {};
+        const totalLost = Object.values(losses).reduce((s, v) => s + v, 0);
+        useBaseStore.getState().addToast?.({
+          type: totalLost > 0 ? 'warning' : 'info',
+          message: totalLost > 0
+            ? `⚔️ Your reinforcements at ${defenderBaseName} were attacked! ${totalLost} units lost.`
+            : `🛡 Your reinforcements at ${defenderBaseName} defended successfully!`,
+        });
+        useBaseStore.getState().addReinforcementReport?.({ report, defenderBaseName, losses, attackId });
+      } else {
+        const baseId = role === 'attacker' ? report.attackerBaseId : report.defenderBaseId;
+        if (!baseId || isActiveBase(baseId)) {
+          useBaseStore.getState().addBattleReport(report);
+        }
       }
     });
 

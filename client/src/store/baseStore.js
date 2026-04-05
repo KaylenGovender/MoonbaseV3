@@ -53,6 +53,12 @@ export const useBaseStore = create((set, get) => ({
       recentAttacks: [report, ...state.recentAttacks].slice(0, 20),
     })),
 
+  reinforcementReports: [],
+  addReinforcementReport: (entry) =>
+    set((state) => ({
+      reinforcementReports: [entry, ...state.reinforcementReports].slice(0, 20),
+    })),
+
   addToast: (toast) =>
     set((state) => ({
       toasts: [...state.toasts, { ...toast, id: Date.now() + Math.random() }],

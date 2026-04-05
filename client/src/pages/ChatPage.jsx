@@ -166,16 +166,22 @@ function DMView({ targetUserId, targetUsername, onBack }) {
 
   useEffect(() => {
     if (!targetUserId) return;
+    setLoading(true);
     api.get(`/chat/dm/${targetUserId}`)
       .then((d) => {
         setMessages(d.messages ?? []);
-        setTimeout(() => chatRef.current?.scrollTo({ top: 99999 }), 50);
+        setTimeout(() => {
+          if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        }, 50);
       })
       .catch((e) => console.error('Failed to load DM history:', e))
       .finally(() => setLoading(false));
 
     socket?.emit('chat:join_dm', { withUserId: targetUserId });
-  }, [targetUserId]);
+    return () => {
+      socket?.emit('chat:leave_dm', { withUserId: targetUserId });
+    };
+  }, [targetUserId, socket]);
 
   useEffect(() => {
     if (!socket) return;

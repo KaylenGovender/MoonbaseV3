@@ -139,40 +139,72 @@ export default function WarRoom() {
         )}
 
         {/* Build Queue */}
-        {buildQueue.length > 0 && (
+        {buildQueue.length > 0 && (() => {
+          // Group build jobs by unit type for compact display
+          const grouped = {};
+          for (const job of buildQueue) {
+            if (!grouped[job.unitType]) {
+              grouped[job.unitType] = { unitType: job.unitType, jobs: [], totalRemaining: 0, earliestCompletes: null, latestCompletes: null };
+            }
+            const g = grouped[job.unitType];
+            g.jobs.push(job);
+            g.totalRemaining += job.quantity ?? 1;
+            const t = new Date(job.completesAt).getTime();
+            if (!g.earliestCompletes || t < g.earliestCompletes) g.earliestCompletes = t;
+            if (!g.latestCompletes || t > g.latestCompletes) g.latestCompletes = t;
+          }
+
+          return (
           <div>
             <p className="section-title">Build Queue</p>
             <div className="space-y-2">
-              {buildQueue.map((job) => {
-                const meta = UNIT_META[job.unitType] ?? { icon: '⚔️', label: job.unitType };
+              {Object.values(grouped).map((g) => {
+                const meta = UNIT_META[g.unitType] ?? { icon: '⚔️', label: g.unitType };
+                const lastJob = g.jobs[g.jobs.length - 1];
                 return (
-                  <div key={job.id} className="card flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl"><UnitIcon type={job.unitType} size={22} /></span>
-                      <div>
-                        <div className="text-sm text-white">{job.quantity}× {meta.label}</div>
-                        <div className="text-xs text-slate-500">Building…</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-blue-400 font-mono text-sm">
-                        {formatCountdown(job.completesAt)}
-                      </div>
-                      {confirmCancel === job.id ? (
-                        <div className="flex gap-1">
-                          <button onClick={() => cancelJob(job.id)} className="btn-danger text-xs px-2 py-1">✓</button>
-                          <button onClick={() => setConfirmCancel(null)} className="btn-ghost text-xs px-2 py-1">✕</button>
+                  <div key={g.unitType} className="card">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl"><UnitIcon type={g.unitType} size={22} /></span>
+                        <div>
+                          <div className="text-sm text-white">{g.totalRemaining}× {meta.label}</div>
+                          <div className="text-xs text-slate-500">
+                            {g.totalRemaining > 1
+                              ? `Next unit in ${formatCountdown(new Date(g.earliestCompletes))} · All done in ${formatCountdown(new Date(g.latestCompletes))}`
+                              : 'Building…'}
+                          </div>
                         </div>
-                      ) : (
-                        <button onClick={() => setConfirmCancel(job.id)} className="btn-ghost text-xs px-2 py-1 text-red-400 border-red-800/50">Cancel</button>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-blue-400 font-mono text-sm">
+                          {formatCountdown(new Date(g.latestCompletes))}
+                        </div>
+                        {confirmCancel === g.unitType ? (
+                          <div className="flex gap-1">
+                            <button onClick={() => cancelJob(lastJob.id)} className="btn-danger text-xs px-2 py-1">✓</button>
+                            <button onClick={() => setConfirmCancel(null)} className="btn-ghost text-xs px-2 py-1">✕</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmCancel(g.unitType)} className="btn-ghost text-xs px-2 py-1 text-red-400 border-red-800/50">Cancel</button>
+                        )}
+                      </div>
                     </div>
+                    {/* Progress bar */}
+                    {g.totalRemaining > 1 && (
+                      <div className="mt-2 h-1 rounded-full bg-space-600 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-blue-500 transition-all"
+                          style={{ width: `${Math.max(5, ((Date.now() - new Date(g.jobs[0].startedAt).getTime()) / (g.latestCompletes - new Date(g.jobs[0].startedAt).getTime())) * 100)}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Active Reinforcements */}
         {(outgoing.length > 0 || incoming.length > 0) && (

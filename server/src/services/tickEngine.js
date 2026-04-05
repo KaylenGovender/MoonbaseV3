@@ -138,6 +138,7 @@ export async function runTick() {
     // ── 5. Attack arrivals ────────────────────────────────────────────────
     const arrivedAttacks = await prisma.attack.findMany({
       where: { arrivalTime: { lte: now }, status: 'IN_FLIGHT' },
+      include: { defenderBase: { select: { name: true, userId: true } } },
     });
 
     for (const attack of arrivedAttacks) {
@@ -170,6 +171,30 @@ export async function runTick() {
           report,
           role: 'defender',
         });
+
+        // Notify reinforcement owners about their losses
+        const ownerLosses = report._reinforcementOwnerLosses ?? {};
+        const reinforcements = report._reinforcements ?? [];
+        const notifiedOwners = new Set();
+        for (const r of reinforcements) {
+          const ownerId = r.fromBase?.userId;
+          if (!ownerId || ownerId === attack.defenderBase?.userId || notifiedOwners.has(ownerId)) continue;
+          notifiedOwners.add(ownerId);
+          const myLosses = ownerLosses[ownerId] ?? {};
+          // Find all bases owned by this user to send them the notification
+          const ownerBases = await prisma.base.findMany({ where: { userId: ownerId }, select: { id: true } });
+          for (const ob of ownerBases) {
+            io.to(`base:${ob.id}`).emit('combat:report', {
+              attackId: attack.id,
+              report: {
+                ...report,
+                reinforcementOwnerLosses: myLosses,
+              },
+              role: 'reinforcer',
+              defenderBaseName: attack.defenderBase?.name ?? 'Unknown base',
+            });
+          }
+        }
 
         // Push updated defender resources + units so their UI refreshes immediately
         const defenderRes = await prisma.resourceState.findUnique({ where: { baseId: attack.defenderBaseId } });

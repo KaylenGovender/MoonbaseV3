@@ -187,17 +187,18 @@ enum AttackStatus {
 
 // ─── Battle Report ────────────────────────────────────────────────────────────
 model BattleReport {
-  id                   String   @id @default(cuid())
-  attackId             String   @unique
-  attackingUnits       Json
-  defendingUnits       Json
-  attackerUnitsLost    Json
-  defenderUnitsLost    Json
-  resourcesLooted      Json
-  attackerPointsChange Int
-  defenderPointsChange Int
-  attackerWon          Boolean
-  reportedAt           DateTime @default(now())
+  id                    String   @id @default(cuid())
+  attackId              String   @unique
+  attackingUnits        Json
+  defendingUnits        Json
+  attackerUnitsLost     Json
+  defenderUnitsLost     Json
+  resourcesLooted       Json
+  attackerPointsChange  Int
+  defenderPointsChange  Int
+  attackerWon           Boolean
+  reinforcementLosses   Json?    // { reinforcementId: { unitType: lostCount } }
+  reportedAt            DateTime @default(now())
 
   attack Attack @relation(fields: [attackId], references: [id])
 }

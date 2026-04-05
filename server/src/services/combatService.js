@@ -6,6 +6,9 @@ import { addResources } from './resourceEngine.js';
  * Resolve a battle when an attack arrives at the defender base.
  * Returns the BattleReport plus survivingAttackerUnits and attackerUnitsLost
  * so tickEngine can correctly return units and apply losses on COMPLETED.
+ *
+ * Reinforcement units are included in defense. Losses and defender points are
+ * split proportionally based on each owner's defense contribution.
  */
 export async function resolveBattle(attack) {
   const attackerBase = await prisma.base.findUnique({
@@ -26,6 +29,27 @@ export async function resolveBattle(attack) {
     if (stock.count > 0) defendingUnits[stock.type] = stock.count;
   }
 
+  // ── Load reinforcements at defender base ──────────────────────────────────
+  let reinforcements = [];
+  try {
+    reinforcements = await prisma.reinforcement.findMany({
+      where: { toBaseId: attack.defenderBaseId, status: 'ARRIVED' },
+      include: { fromBase: { select: { userId: true } } },
+    });
+  } catch {}
+
+  // Build ownership map: how many defense points each user contributes
+  // Defender base owner's own units = total defending - all reinforcement units
+  const reinfUnitsByOwner = {}; // userId → { type: count }
+  for (const r of reinforcements) {
+    const ownerId = r.fromBase?.userId;
+    if (!ownerId) continue;
+    if (!reinfUnitsByOwner[ownerId]) reinfUnitsByOwner[ownerId] = {};
+    for (const [type, qty] of Object.entries(r.units ?? {})) {
+      reinfUnitsByOwner[ownerId][type] = (reinfUnitsByOwner[ownerId][type] || 0) + qty;
+    }
+  }
+
   // ── Calculate totals ──────────────────────────────────────────────────────
   let totalAttack = 0;
   let totalDefense = 0;
@@ -40,6 +64,20 @@ export async function resolveBattle(attack) {
       totalDefense += getUnitStatsMap()[type].defense * count;
     }
   }
+
+  // Calculate each owner's defense contribution for proportional points
+  const defenseByOwner = {}; // userId → defensePoints
+  // Reinforcement owners
+  for (const [ownerId, units] of Object.entries(reinfUnitsByOwner)) {
+    let ownerDef = 0;
+    for (const [type, qty] of Object.entries(units)) {
+      ownerDef += (getUnitStatsMap()[type]?.defense ?? 0) * qty;
+    }
+    defenseByOwner[ownerId] = ownerDef;
+  }
+  // Defender base owner gets remaining defense
+  const reinfDefenseTotal = Object.values(defenseByOwner).reduce((a, b) => a + b, 0);
+  defenseByOwner[defenderBase.userId] = (defenseByOwner[defenderBase.userId] || 0) + Math.max(totalDefense - reinfDefenseTotal, 0);
 
   const attackerWon = totalAttack > totalDefense;
 
@@ -62,6 +100,33 @@ export async function resolveBattle(attack) {
       ? Math.floor(count * defenderLossRatio * 0.4)
       : Math.ceil(count * defenderLossRatio);
     defenderUnitsLost[type] = Math.min(lost, count);
+  }
+
+  // ── Calculate per-reinforcement-owner losses ──────────────────────────────
+  // Losses are distributed proportionally among all defending unit owners
+  const reinforcementLosses = {}; // { reinforcementId: { type: lostCount } }
+  const ownerLosses = {};         // { userId: { type: lostCount } }
+  const remainingLosses = { ...defenderUnitsLost };
+
+  for (const r of reinforcements) {
+    const ownerId = r.fromBase?.userId;
+    if (!ownerId) continue;
+    const rLosses = {};
+    for (const [type, qty] of Object.entries(r.units ?? {})) {
+      if (!remainingLosses[type] || remainingLosses[type] <= 0) continue;
+      const totalOfType = defendingUnits[type] || 1;
+      // Proportional share of losses for this reinforcement's units of this type
+      const share = Math.min(Math.ceil((qty / totalOfType) * (defenderUnitsLost[type] || 0)), qty, remainingLosses[type]);
+      if (share > 0) {
+        rLosses[type] = share;
+        remainingLosses[type] -= share;
+        if (!ownerLosses[ownerId]) ownerLosses[ownerId] = {};
+        ownerLosses[ownerId][type] = (ownerLosses[ownerId][type] || 0) + share;
+      }
+    }
+    if (Object.keys(rLosses).length > 0) {
+      reinforcementLosses[r.id] = rLosses;
+    }
   }
 
   // ── Surviving attacker units (returned home on COMPLETED) ────────────────
@@ -146,7 +211,7 @@ export async function resolveBattle(attack) {
     data: { count: 0 },
   });
 
-  // ── Update medals ─────────────────────────────────────────────────────────
+  // ── Update medals — proportional defender points ──────────────────────────
   const season = await prisma.season.findFirst({ where: { isActive: true } });
   if (season) {
     const week = await getCurrentSeasonWeekNumber(season.id);
@@ -159,11 +224,19 @@ export async function resolveBattle(attack) {
       attackerPoints: attackerPointsChange,
       raiderPoints:   Math.floor(totalLooted / 50),
     });
-    // Defender medals
-    await upsertMedal(defenderBase.userId, season.id, week, {
-      defenderPoints: defenderPointsChange,
-      raiderPoints:   0,
-    });
+
+    // Distribute defender points proportionally based on defense contribution
+    const totalDefContrib = Object.values(defenseByOwner).reduce((a, b) => a + b, 0) || 1;
+    for (const [userId, defContrib] of Object.entries(defenseByOwner)) {
+      const proportion = defContrib / totalDefContrib;
+      const points = Math.round(defenderPointsChange * proportion);
+      if (points !== 0) {
+        await upsertMedal(userId, season.id, week, {
+          defenderPoints: points,
+          raiderPoints: 0,
+        });
+      }
+    }
   }
 
   // ── Create battle report ──────────────────────────────────────────────────
@@ -178,8 +251,13 @@ export async function resolveBattle(attack) {
       attackerPointsChange,
       defenderPointsChange,
       attackerWon,
+      reinforcementLosses, // per-reinforcement unit losses
     },
   });
+
+  // Store reinforcement owner losses for notifications
+  report._reinforcementOwnerLosses = ownerLosses;
+  report._reinforcements = reinforcements;
 
   return { report, attackerWon, resourcesLooted, survivingAttackerUnits, attackerUnitsLost };
 }
