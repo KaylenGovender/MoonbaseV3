@@ -399,6 +399,7 @@ export default function Admin() {
   }
 
   async function deleteWeek(weekId, seasonId) {
+    if (!window.confirm('Delete this week config? This cannot be undone.')) return;
     try {
       await api.delete(`/admin/week-configs/${weekId}`);
       loadWeeks(seasonId);
@@ -614,9 +615,9 @@ export default function Admin() {
             <div className="text-center py-8 text-slate-600 text-sm">No users found</div>
           ) : (
             <div className="space-y-1.5">
-              {users.map((u) => (
+              {users.map((u, i) => (
                 <button key={u.id} onClick={() => selectPlayer(u)}
-                  className="w-full card text-left flex items-center justify-between py-3">
+                  className={`w-full card text-left flex items-center justify-between py-3 ${i % 2 === 1 ? 'bg-space-800/40' : ''}`}>
                   <div>
                     <div className="text-sm font-medium text-white">{u.username}</div>
                     <div className="text-[10px] text-slate-500 mt-0.5">{u.email}</div>
@@ -914,8 +915,9 @@ export default function Admin() {
                             {loadingSeasonOps[s.id] === 'ending' ? '⏳' : 'End Season'}
                           </button>
                         )}
-                        <button onClick={() => deleteSeason(s.id)} className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50">
-                          Delete
+                        <button onClick={() => deleteSeason(s.id)} disabled={!!loadingSeasonOps[s.id]}
+                          className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
+                          {loadingSeasonOps[s.id] === 'deleting' ? '⏳ Deleting…' : '🗑 Delete'}
                         </button>
                         <button
                           onClick={() => {
@@ -935,8 +937,8 @@ export default function Admin() {
                       {expandedWeeks.has(s.id) && (
                         <div className="mt-3 border-t border-space-600/30 pt-3 space-y-1.5">
                           {weekMsg && <div className={`text-xs ${weekMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{weekMsg}</div>}
-                          {(weekConfigs[s.id] ?? []).map((wc) => (
-                            <div key={wc.id} className="rounded-lg bg-space-700/50 px-3 py-2">
+                          {(weekConfigs[s.id] ?? []).map((wc, wi) => (
+                            <div key={wc.id} className={`rounded-lg px-3 py-2 ${wi % 2 === 0 ? 'bg-space-700/50' : 'bg-space-800/40'}`}>
                               {editingWeek?.id === wc.id ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-slate-400 flex-shrink-0">W{wc.weekNumber}</span>
@@ -1020,8 +1022,8 @@ export default function Admin() {
                         <div className="text-xs text-slate-600 text-center py-2">No members loaded</div>
                       ) : (
                         <div className="space-y-1">
-                          {(a.members ?? []).map((m) => (
-                            <div key={m.id ?? m.userId} className="flex items-center justify-between rounded-lg bg-space-700/50 px-3 py-2">
+                          {(a.members ?? []).map((m, mi) => (
+                            <div key={m.id ?? m.userId} className={`flex items-center justify-between rounded-lg px-3 py-2 ${mi % 2 === 0 ? 'bg-space-700/50' : 'bg-space-800/40'}`}>
                               <div>
                                 <span className="text-xs text-white">{m.user?.username ?? '?'}</span>
                                 {(m.userId === a.leaderId) && (
@@ -1037,7 +1039,7 @@ export default function Admin() {
                                     </button>
                                     <button onClick={() => kickMember(a.id, m.userId)}
                                       className="text-[10px] px-2 py-0.5 rounded border bg-red-900/30 text-red-400 border-red-800/50 hover:bg-red-800/40">
-                                      Kick
+                                      🗑 Kick
                                     </button>
                                   </>
                                 )}
@@ -1049,7 +1051,7 @@ export default function Admin() {
 
                       {/* Disband button */}
                       <button onClick={() => disbandAlliance(a.id)}
-                        className="w-full bg-red-900/40 border border-red-700/50 text-red-300 text-xs py-2 rounded-xl font-semibold hover:bg-red-800/50 transition-colors mt-2">
+                        className="btn-danger w-full text-xs py-2 mt-2">
                         🗑 Disband Alliance
                       </button>
                     </div>
@@ -1120,8 +1122,8 @@ export default function Admin() {
             </p>
 
             <div className="max-h-64 overflow-y-auto space-y-0.5 rounded-xl border border-space-600/40 p-2 bg-space-800/60">
-              {allUsers.filter((u) => !u.isAdmin).map((u) => (
-                <label key={u.id} className="flex items-center gap-3 text-sm text-slate-300 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-space-700/50">
+              {allUsers.filter((u) => !u.isAdmin).map((u, i) => (
+                <label key={u.id} className={`flex items-center gap-3 text-sm text-slate-300 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-space-700/50 ${i % 2 === 1 ? 'bg-space-800/30' : ''}`}>
                   <input type="checkbox" className="accent-blue-500 w-4 h-4"
                     checked={preserveIds.has(u.id)}
                     onChange={(e) => setPreserveIds((prev) => {
@@ -1146,14 +1148,14 @@ export default function Admin() {
 
             {!resetConfirm ? (
               <button onClick={() => setResetConfirm(true)}
-                className="w-full bg-red-900/50 border border-red-700/50 text-red-300 text-sm py-2.5 rounded-xl font-semibold hover:bg-red-800/50 transition-colors">
+                className="btn-danger w-full text-sm py-2.5">
                 🔄 Reset Gameplay
               </button>
             ) : (
               <div className="space-y-2">
                 <div className="text-sm text-red-300 font-semibold text-center">This cannot be undone — confirm?</div>
                 <div className="flex gap-2">
-                  <button onClick={doReset} className="flex-1 bg-red-700 border border-red-600 text-white text-sm py-2.5 rounded-xl font-semibold hover:bg-red-600">
+                  <button onClick={doReset} className="btn-danger flex-1 text-sm py-2.5">
                     Yes, Reset Now
                   </button>
                   <button onClick={() => setResetConfirm(false)} className="flex-1 btn-ghost text-sm py-2.5">Cancel</button>
@@ -1180,7 +1182,7 @@ export default function Admin() {
             ) : (
               <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
                 {battleReports.map((r, i) => (
-                  <div key={r.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2">
+                  <div key={r.id ?? i} className={`rounded-lg px-3 py-2 ${i % 2 === 0 ? 'bg-space-700/50' : 'bg-space-800/40'}`}>
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-white">
                         <span className="text-red-400">{r.attackerName ?? '?'}</span>
@@ -1238,7 +1240,7 @@ export default function Admin() {
             </label>
             <button onClick={resetConfigToDefaults}
               className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
-              🔄 Reset to Defaults
+              ⚠️ Reset to Defaults
             </button>
           </div>
 

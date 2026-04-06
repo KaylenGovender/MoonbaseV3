@@ -4,13 +4,14 @@ import { useBaseStore } from '../store/baseStore.js';
 import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber, formatCountdown } from '../utils/format.js';
-import { UNIT_META, HELIUM_UPKEEP } from '../utils/gameConstants.js';
+import { UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from '../components/UnitIcon.jsx';
 
 const UNIT_TYPES = ['MOONBUGGY', 'GUNSHIP', 'TANK', 'HARVESTER', 'DRONE', 'TITAN'];
 
 export default function WarRoom() {
   const activeBaseId = useAuthStore((s) => s.activeBaseId);
+  const gameConfig   = useAuthStore((s) => s.gameConfig);
   const baseResources = useBaseStore((s) => s.resources); // live resource values from base store
   const liveUnitStocks = useBaseStore((s) => s.base?.unitStocks); // real-time from WebSocket
   const { socket } = useSocketStore();
@@ -369,7 +370,7 @@ export default function WarRoom() {
                       <div>
                         <div className="text-sm font-semibold text-white">{meta.label}</div>
                         <div className="text-[10px] text-slate-500">
-                          ATK {s.attack} · DEF {s.defense} · {s.speed}km/h · Cap {s.carryCapacity} · <span className="text-red-400">He3 {HELIUM_UPKEEP[type]}/min</span>
+                          ATK {s.attack} · DEF {s.defense} · {s.speed}km/h · Cap {s.carryCapacity} · <span className="text-red-400">He3 {gameConfig?.heliumUpkeep?.[type] ?? 0}/min</span>
                         </div>
                         <div className="text-[10px] text-slate-600">
                           ⏱ {s.buildTime ?? 30}s each
