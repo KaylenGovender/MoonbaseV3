@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { prisma } from '../prisma/client.js';
 import { deductResources, addResources } from '../services/resourceEngine.js';
-import { getUnitStatsMap, constructionYardReduction } from '../services/gameConfigService.js';
+import { getUnitStatsMap, getBuffedUnitStats, constructionYardReduction } from '../services/gameConfigService.js';
 import { distanceBetween as calcDistance } from '../services/placementService.js';
 import { getConfig } from '../services/serverConfig.js';
 
@@ -21,7 +21,8 @@ router.get('/:baseId', requireAuth, async (req, res) => {
       where: { baseId, completed: false },
       orderBy: { startedAt: 'asc' },
     });
-    res.json({ unitStocks, buildQueue, unitStats: getUnitStatsMap() });
+    const { stats: buffedStats, labLevel, buffPct } = await getBuffedUnitStats(baseId);
+    res.json({ unitStocks, buildQueue, unitStats: buffedStats, labLevel, buffPct });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

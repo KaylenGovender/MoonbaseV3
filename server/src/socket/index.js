@@ -67,31 +67,45 @@ export function createSocketServer(httpServer) {
     }
 
     // ── Chat events ──────────────────────────────────────────────────────
-    socket.on('chat:send', async (data) => {
-      const { allianceId, toUserId, message } = data;
-      if (!message?.trim()) return;
+    socket.on('chat:send', async (data, callback) => {
+      try {
+        const { allianceId, toUserId, message } = data;
+        if (!message?.trim()) { callback?.({ success: false, error: 'Empty message' }); return; }
 
-      const msg = await prisma.chatMessage.create({
-        data: {
-          allianceId: allianceId || null,
-          fromUserId: userId,
-          toUserId:   toUserId || null,
-          message:    message.trim().slice(0, 500),
-        },
-        include: { fromUser: { select: { id: true, username: true } } },
-      });
+        const msg = await prisma.chatMessage.create({
+          data: {
+            allianceId: allianceId || null,
+            fromUserId: userId,
+            toUserId:   toUserId || null,
+            message:    message.trim().slice(0, 500),
+          },
+          include: { fromUser: { select: { id: true, username: true } } },
+        });
 
-      if (allianceId) {
-        io.to(`alliance:${allianceId}`).emit('chat:message', msg);
-      } else if (toUserId) {
-        const dmRoom = dmRoomId(userId, toUserId);
-        io.to(dmRoom).emit('chat:message', msg);
+        if (allianceId) {
+          io.to(`alliance:${allianceId}`).emit('chat:message', msg);
+        } else if (toUserId) {
+          const dmRoom = dmRoomId(userId, toUserId);
+          io.to(dmRoom).emit('chat:message', msg);
+        }
+        callback?.({ success: true, msg });
+      } catch (err) {
+        console.error('[chat:send]', err);
+        callback?.({ success: false, error: 'Failed to send message' });
       }
     });
 
-    // ── Join DM room ──────────────────────────────────────────────────────
+    // ── Join / leave DM room ─────────────────────────────────────────────
     socket.on('chat:join_dm', ({ withUserId }) => {
       socket.join(dmRoomId(userId, withUserId));
+    });
+
+    socket.on('chat:leave_dm', ({ withUserId }) => {
+      socket.leave(dmRoomId(userId, withUserId));
+    });
+
+    socket.on('chat:join_alliance', ({ allianceId }) => {
+      socket.join(`alliance:${allianceId}`);
     });
 
     socket.on('disconnect', () => {});

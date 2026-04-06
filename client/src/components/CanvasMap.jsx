@@ -262,7 +262,7 @@ export default function CanvasMap({ bases, attacks, tradePods, playerBases, visR
       const color = isOwn ? 'rgba(74,222,128,' : 'rgba(239,68,68,';
       const dotColor = isOwn ? '#4ade80' : '#ef4444';
 
-      if (attack.status === 'RETURNING' && attack.returnTime) {
+      if (attack.status === 'RETURNING' && attack.returnTime && new Date(attack.returnTime).getTime() > now) {
         const arrival  = new Date(attack.arrivalTime).getTime();
         const ret      = new Date(attack.returnTime).getTime();
         const progress = ret > arrival ? Math.min((now - arrival) / (ret - arrival), 1) : 1;

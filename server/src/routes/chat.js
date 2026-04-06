@@ -101,4 +101,38 @@ router.get('/conversations', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/chat/mark-read — mark messages as read
+router.post('/mark-read', requireAuth, async (req, res) => {
+  try {
+    const { messageIds } = req.body;
+    if (!messageIds?.length) return res.status(400).json({ error: 'No message IDs' });
+    await prisma.chatMessage.updateMany({
+      where: { id: { in: messageIds }, toUserId: req.user.id, readAt: null },
+      data: { readAt: new Date() },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/chat/conversation/:userId — delete a DM conversation
+router.delete('/conversation/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId: otherUserId } = req.params;
+    await prisma.chatMessage.deleteMany({
+      where: {
+        allianceId: null,
+        OR: [
+          { fromUserId: req.user.id, toUserId: otherUserId },
+          { fromUserId: otherUserId, toUserId: req.user.id },
+        ],
+      },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

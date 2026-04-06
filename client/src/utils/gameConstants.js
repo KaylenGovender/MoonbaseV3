@@ -1,9 +1,9 @@
 // Client-side game constants (mirrored from server config)
 
-export const APP_VERSION = 'v3.0.5';
+export const APP_VERSION = 'v4.0.0';
 
 export function siloCapacity(level) {
-  return 1500 + level * 500;
+  return 1500 + level * 750;
 }
 
 // Max 40% protection at level 20

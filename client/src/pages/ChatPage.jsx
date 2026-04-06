@@ -24,6 +24,7 @@ function ConversationList({ navigate }) {
   const [searchQ, setSearchQ] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
 
@@ -33,6 +34,16 @@ function ConversationList({ navigate }) {
       .catch((e) => console.error('Failed to load conversations:', e))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDeleteConversation(userId) {
+    try {
+      await api.delete(`/chat/conversation/${userId}`);
+      setConversations((prev) => prev.filter((c) => c.userId !== userId));
+    } catch (e) {
+      console.error('Failed to delete conversation:', e);
+    }
+    setDeleteTarget(null);
+  }
 
   // Debounced player search
   const handleSearch = useCallback((q) => {
@@ -129,28 +140,51 @@ function ConversationList({ navigate }) {
             ) : (
               <div className="divide-y divide-space-700/50">
                 {conversations.map((c) => (
-                  <button
+                  <div
                     key={c.userId}
-                    onClick={() => navigate(`/chat/${c.userId}?name=${encodeURIComponent(c.username)}`)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-space-700/40 transition-colors text-left"
                   >
-                    <div className="w-10 h-10 rounded-full bg-space-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                      {getInitials(c.username)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white">{c.username}</div>
-                      <div className="text-xs text-slate-500 truncate">{c.lastMessage}</div>
-                    </div>
-                    <div className="text-[10px] text-slate-600 flex-shrink-0">
-                      {formatTime(c.sentAt)}
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => navigate(`/chat/${c.userId}?name=${encodeURIComponent(c.username)}`)}
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-space-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                        {getInitials(c.username)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white">{c.username}</div>
+                        <div className="text-xs text-slate-500 truncate">{c.lastMessage}</div>
+                      </div>
+                      <div className="text-[10px] text-slate-600 flex-shrink-0">
+                        {formatTime(c.sentAt)}
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                      className="text-slate-600 hover:text-red-400 transition-colors text-sm flex-shrink-0 p-1"
+                      title="Delete conversation"
+                    >🗑️</button>
+                  </div>
                 ))}
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-space-800 border border-space-600/50 rounded-xl p-5 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-semibold text-white mb-2">Delete conversation?</div>
+            <div className="text-xs text-slate-400 mb-4">Delete conversation with {deleteTarget.username}? This cannot be undone.</div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeleteTarget(null)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors">Cancel</button>
+              <button onClick={() => handleDeleteConversation(deleteTarget.userId)} className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -169,7 +203,21 @@ function DMView({ targetUserId, targetUsername, onBack }) {
     setLoading(true);
     api.get(`/chat/dm/${targetUserId}`)
       .then((d) => {
-        setMessages(d.messages ?? []);
+        const msgs = d.messages ?? [];
+        setMessages(msgs);
+        // Mark unread messages from the other user as read
+        const unreadIds = msgs
+          .filter((m) => m.fromUserId === targetUserId && m.toUserId === user?.id && !m.readAt)
+          .map((m) => m.id);
+        if (unreadIds.length > 0) {
+          api.post('/chat/mark-read', { messageIds: unreadIds })
+            .then(() => {
+              setMessages((prev) => prev.map((m) =>
+                unreadIds.includes(m.id) ? { ...m, readAt: new Date().toISOString() } : m
+              ));
+            })
+            .catch(() => {});
+        }
         setTimeout(() => {
           if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
         }, 50);
@@ -200,8 +248,13 @@ function DMView({ targetUserId, targetUsername, onBack }) {
   function send() {
     const text = input.trim();
     if (!text || !socket) return;
-    socket.emit('chat:send', { toUserId: targetUserId, message: text });
-    setInput('');
+    socket.emit('chat:send', { toUserId: targetUserId, message: text }, (ack) => {
+      if (ack?.success) {
+        setInput('');
+      } else {
+        console.error('Failed to send:', ack?.error);
+      }
+    });
   }
 
   return (
@@ -234,11 +287,18 @@ function DMView({ targetUserId, targetUsername, onBack }) {
                   ? 'bg-blue-600 text-white rounded-br-sm'
                   : 'bg-space-700 text-slate-200 rounded-bl-sm'}`}>
                 {msg.message}
-                {msg.sentAt && (
-                  <div className="text-[9px] text-white/50 mt-0.5 text-right">
-                    {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                )}
+                <div className="flex items-center justify-end gap-1 mt-0.5">
+                  {msg.sentAt && (
+                    <span className="text-[9px] text-white/50">
+                      {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  {msg.fromUserId === user?.id && (
+                    <span className={`text-[10px] ${msg.readAt ? 'text-blue-400' : 'text-slate-500'}`}>
+                      {msg.readAt ? '✓✓' : '✓'}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           ))

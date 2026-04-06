@@ -5,7 +5,7 @@
 // ALL buildings require all 4 resources
 function buildingLevelConfig(baseO2, baseWater, baseIron, baseHe3, baseTime) {
   return Array.from({ length: 20 }, (_, i) => {
-    const m = Math.pow(1.6, i);
+    const m = Math.pow(1.2, i);
     return {
       oxygen:      Math.round(baseO2    * m),
       water:       Math.round(baseWater * m),
@@ -27,9 +27,9 @@ export const BUILDING_CONFIG = {
   TRADE_POD:        buildingLevelConfig(128,  128,  128, 64,  360),
 };
 
-// Silo: max resources stored per level (level 0 base = 1500, +500/level)
+// Silo: max resources stored per level (level 0 base = 1500, +750/level)
 export function siloCapacity(level) {
-  return 1500 + level * 500;
+  return 1500 + level * 750;
 }
 
 // Bunker: % of resources protected from looting — max 40% at level 20

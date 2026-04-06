@@ -32,6 +32,8 @@ model User {
   isAdmin      Boolean  @default(false)
   isBanned     Boolean  @default(false)
   createdAt    DateTime @default(now())
+  passwordResetToken  String?
+  resetTokenExpiry    DateTime?
 
   bases                Base[]
   allianceMembership   AllianceMember[]
@@ -275,12 +277,13 @@ enum TradePodStatus {
 
 // ─── Chat Message ─────────────────────────────────────────────────────────────
 model ChatMessage {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   allianceId String?
   fromUserId String
   toUserId   String?
   message    String
-  sentAt     DateTime @default(now())
+  sentAt     DateTime  @default(now())
+  readAt     DateTime?
 
   alliance Alliance? @relation(fields: [allianceId], references: [id])
   fromUser User      @relation("sender", fields: [fromUserId], references: [id])

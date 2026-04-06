@@ -10,6 +10,7 @@ import ActiveEvents from '../components/ActiveEvents.jsx';
 import BattleReports from '../components/BattleReports.jsx';
 import ClaimBaseModal from '../components/ClaimBaseModal.jsx';
 import TransferModal from '../components/TransferModal.jsx';
+import { LayoutGrid } from 'lucide-react';
 import { APP_VERSION } from '../utils/gameConstants.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
@@ -29,12 +30,13 @@ export default function Base() {
 
   // Use live config for silo capacity, fallback to hardcoded
   const siloCapacity = (level) => {
-    if (gameSpecial) return (gameSpecial.siloBase ?? 1500) + level * (gameSpecial.siloPerLevel ?? 500);
+    if (gameSpecial) return (gameSpecial.siloBase ?? 1500) + level * (gameSpecial.siloPerLevel ?? 750);
     return defaultSiloCapacity(level);
   };
   const [myRank,       setMyRank]       = useState(null);
   const [showBases,    setShowBases]    = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showMenu,     setShowMenu]     = useState(false);
   const [toasts,       setToasts]       = useState([]);
   const [currentSeason, setCurrentSeason] = useState(undefined); // undefined=loading, null=none
 
@@ -44,6 +46,19 @@ export default function Base() {
       .then((d) => setCurrentSeason(d.season ?? null))
       .catch(() => setCurrentSeason(null));
   }, []);
+
+  // When no active season, poll every 30s and auto-refresh when one appears
+  useEffect(() => {
+    if (currentSeason !== null) return; // only poll when no season
+    const iv = setInterval(() => {
+      api.get('/season/current')
+        .then((d) => {
+          if (d.season) window.location.reload();
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [currentSeason]);
 
   let toastCounter = 0;
   function addToast(message, type = 'info') {
@@ -117,7 +132,7 @@ export default function Base() {
     return (
       <div className="page">
         <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center justify-between">
-          <h1 className="text-sm font-semibold text-white">🌙 Moonbase</h1>
+          <h1 className="text-sm font-semibold text-white">🌙 Lunara</h1>
           <button onClick={logout} className="text-xs text-slate-400 hover:text-white">Logout</button>
         </div>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center space-y-6">
@@ -140,7 +155,7 @@ export default function Base() {
               <div className="text-5xl">🌑</div>
               <div>
                 <div className="text-xl font-bold text-white mb-2">No Active Season</div>
-                <div className="text-sm text-slate-400">There is no active season right now. Check back soon!</div>
+                <div className="text-sm text-slate-400">Season starts soon — checking automatically…</div>
               </div>
             </>
           )}
@@ -227,14 +242,42 @@ export default function Base() {
           >
             🔄
           </button>
-          <button
-            onClick={() => { logout(); navigate('/login'); }}
-            className="text-xs text-slate-500 hover:text-red-400 transition-colors"
-          >
-            Logout
+          <button onClick={() => setShowMenu(v => !v)} className="text-slate-400 hover:text-white transition-colors text-xl" title="Menu">
+            ☰
           </button>
         </div>
       </div>
+
+      {/* Hamburger Menu Overlay */}
+      {showMenu && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40"
+          onClick={() => setShowMenu(false)}
+        >
+          <div
+            className="absolute top-14 right-4 w-56 bg-space-800 border border-space-600/50 rounded-xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {user?.isAdmin && (
+              <>
+                <button
+                  onClick={() => { setShowMenu(false); navigate('/admin'); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-200 hover:bg-space-700/50 transition-colors text-left"
+                >
+                  <span>⚙️</span> Admin Panel
+                </button>
+                <div className="border-b border-space-600/40" />
+              </>
+            )}
+            <button
+              onClick={() => { setShowMenu(false); logout(); navigate('/login'); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-900/30 transition-colors text-left"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-4 space-y-6">
         {/* Resources */}
@@ -281,24 +324,6 @@ export default function Base() {
           />
         </section>
 
-        {/* Research Lab progress toward new base — only show when player has 1 base and lab < 20 */}
-        {!canClaimBase && labLevel > 0 && bases.length < 2 && (
-          <div className="card bg-green-950/20 border-green-800/30">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-green-400 font-semibold">🔬 Second Base Progress</span>
-              <span className="text-xs text-slate-400">Research Lab L{labLevel}/20</span>
-            </div>
-            <div className="w-full bg-space-700 rounded-full h-2">
-              <div
-                className="bg-green-500 h-2 rounded-full transition-all"
-                style={{ width: `${(labLevel / 20) * 100}%` }}
-              />
-            </div>
-            <div className="text-xs text-slate-500 mt-1.5">
-              Upgrade Research Lab to Level 20 to unlock a second base
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Base Switcher Dropdown */}
@@ -322,7 +347,7 @@ export default function Base() {
                   ${b.id === activeBaseId ? 'bg-blue-900/30' : ''}`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">🏗️</span>
+                  <LayoutGrid size={20} strokeWidth={1.8} className="text-slate-400 shrink-0" />
                   <div>
                     <div className="text-sm text-white font-medium">{b.name}</div>
                     <div className="text-xs text-slate-500">Base {i + 1}</div>

@@ -22,7 +22,7 @@ export async function placeNewBase(seasonId) {
   const { minKm, maxKm } = getBasePlacement();
   const min = -100, max = 100;
 
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < 100; attempt++) {
     const anchor = existingBases[Math.floor(Math.random() * existingBases.length)];
     const angle = Math.random() * 2 * Math.PI;
     const dist = minKm + Math.random() * (maxKm - minKm);
@@ -30,7 +30,14 @@ export async function placeNewBase(seasonId) {
     const y = anchor.y + dist * Math.sin(angle);
 
     if (x < min || x > max || y < min || y > max) continue;
-    if (existingBases.some((b) => distance(b.x, b.y, x, y) < 2)) continue;
+
+    const nearest = existingBases.reduce((min, b) => {
+      const d = distance(b.x, b.y, x, y);
+      return d < min ? d : min;
+    }, Infinity);
+    if (nearest < minKm) continue;
+
+    console.log(`[placement] Placed base at (${x.toFixed(2)}, ${y.toFixed(2)}), distance from nearest: ${nearest.toFixed(2)}km`);
     return { x, y };
   }
 

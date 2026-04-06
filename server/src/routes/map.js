@@ -116,18 +116,26 @@ router.get('/bases', requireAuth, async (req, res) => {
         const effectiveRadar = rb ? (rb.upgradeEndsAt ? rb.level - 1 : rb.level) : 1;
         return { id: b.id, x: b.x, y: b.y, radarLevel: effectiveRadar };
       }),
-      attacks: activeAttacks.map((a) => ({
-        id:              a.id,
-        attackerBaseId:  a.attackerBaseId,
-        defenderBaseId:  a.defenderBaseId,
-        attackerBase:    a.attackerBase,
-        defenderBase:    a.defenderBase,
-        launchTime:      a.launchTime,
-        arrivalTime:     a.arrivalTime,
-        status:          a.status,
-        returnTime:      a.returnTime,
-        attackerWon:     a.battleReport?.attackerWon ?? null,
-      })),
+      attacks: activeAttacks
+        .filter((a) => {
+          // RETURNING attacks only visible to attacker
+          if (a.status === 'RETURNING') {
+            return playerBases.some((pb) => pb.id === a.attackerBaseId);
+          }
+          return true; // IN_FLIGHT visible to both sides
+        })
+        .map((a) => ({
+          id:              a.id,
+          attackerBaseId:  a.attackerBaseId,
+          defenderBaseId:  a.defenderBaseId,
+          attackerBase:    a.attackerBase,
+          defenderBase:    a.defenderBase,
+          launchTime:      a.launchTime,
+          arrivalTime:     a.arrivalTime,
+          status:          a.status,
+          returnTime:      a.returnTime,
+          attackerWon:     a.battleReport?.attackerWon ?? null,
+        })),
       tradePods: activePods,
     });
   } catch (err) {

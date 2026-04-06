@@ -247,8 +247,14 @@ export default function Alliance() {
 
   async function sendMessage() {
     if (!msgInput.trim() || !alliance) return;
-    socket?.emit('chat:send', { allianceId: alliance.id, message: msgInput.trim() });
-    setMsgInput('');
+    const text = msgInput.trim();
+    socket?.emit('chat:send', { allianceId: alliance.id, message: text }, (ack) => {
+      if (ack?.success) {
+        setMsgInput('');
+      } else {
+        console.error('Failed to send alliance message:', ack?.error);
+      }
+    });
   }
 
   if (!alliance) {

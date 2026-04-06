@@ -149,14 +149,35 @@ export async function runTick() {
 
     const { report, attackerWon, resourcesLooted, survivingAttackerUnits, attackerUnitsLost } = await resolveBattle(attack);
 
-      // Calculate return time (same travel duration)
-      const travelMs = new Date(attack.arrivalTime) - new Date(attack.launchTime);
-      const returnTime = new Date(now.getTime() + travelMs);
+      // Check if all attacker units were destroyed
+      const allAttackersDestroyed = Object.keys(survivingAttackerUnits).length === 0 ||
+        Object.values(survivingAttackerUnits).every(v => v <= 0);
 
-      await prisma.attack.update({
-        where: { id: attack.id },
-        data: { status: 'RETURNING', returnTime },
-      });
+      if (allAttackersDestroyed) {
+        // No units to return — complete immediately
+        await prisma.attack.update({
+          where: { id: attack.id },
+          data: { status: 'COMPLETED' },
+        });
+
+        // Credit looted resources immediately if attacker won
+        if (attackerWon && resourcesLooted) {
+          const totalLooted = resourcesLooted.oxygen + resourcesLooted.water +
+            resourcesLooted.iron + resourcesLooted.helium3;
+          if (totalLooted > 0) {
+            await addResources(attack.attackerBaseId, resourcesLooted);
+          }
+        }
+      } else {
+        // Calculate return time (same travel duration)
+        const travelMs = new Date(attack.arrivalTime) - new Date(attack.launchTime);
+        const returnTime = new Date(now.getTime() + travelMs);
+
+        await prisma.attack.update({
+          where: { id: attack.id },
+          data: { status: 'RETURNING', returnTime },
+        });
+      }
 
       if (io) {
         // Notify attacker
@@ -207,14 +228,21 @@ export async function runTick() {
         const defenderStocks = await prisma.unitStock.findMany({ where: { baseId: attack.defenderBaseId } });
         io.to(`base:${attack.defenderBaseId}`).emit('unit:update', { baseId: attack.defenderBaseId, stocks: defenderStocks });
 
-        // Transition attack line to returning (green/red based on winner)
         const defBase = await prisma.base.findUnique({ where: { id: attack.defenderBaseId }, select: { seasonId: true } });
         if (defBase) {
-          io.to(`map:season:${defBase.seasonId}`).emit('map:attack_returning', {
-            attackId:    attack.id,
-            returnTime,
-            attackerWon,
-          });
+          if (allAttackersDestroyed) {
+            // No return line — attack is done
+            io.to(`map:season:${defBase.seasonId}`).emit('map:attack_completed', { attackId: attack.id });
+          } else {
+            // Transition attack line to returning (green/red based on winner)
+            const travelMs = new Date(attack.arrivalTime) - new Date(attack.launchTime);
+            const returnTime = new Date(now.getTime() + travelMs);
+            io.to(`map:season:${defBase.seasonId}`).emit('map:attack_returning', {
+              attackId:    attack.id,
+              returnTime,
+              attackerWon,
+            });
+          }
         }
       }
     }

@@ -42,7 +42,7 @@ const DEFAULT_HELIUM_UPKEEP = {
 
 const DEFAULT_SPECIAL = {
   siloBase:          1500,
-  siloPerLevel:       500,
+  siloPerLevel:       750,
   bunkerMaxPct:        40,
   radarBase:           20,
   radarPerLevel:        5,
@@ -85,6 +85,17 @@ export async function initGameConfig() {
           create: { key: 'game_config', value: JSON.stringify(_config) },
         });
         console.log('[gameConfig] Migrated unit stats to v3.0.4 balance');
+      }
+
+      // v3.0.5 migration: update siloPerLevel from 500 to 750 for cost calibration
+      if (_config.special.siloPerLevel === 500) {
+        _config.special.siloPerLevel = DEFAULT_SPECIAL.siloPerLevel;
+        await prisma.serverConfig.upsert({
+          where:  { key: 'game_config' },
+          update: { value: JSON.stringify(_config) },
+          create: { key: 'game_config', value: JSON.stringify(_config) },
+        });
+        console.log('[gameConfig] Migrated siloPerLevel to v3.0.5 balance');
       }
     }
   } catch (e) {
@@ -141,7 +152,7 @@ export async function resetGameConfig() {
 
 function buildingLevels(bases) {
   return Array.from({ length: 20 }, (_, i) => {
-    const m = Math.pow(1.6, i);
+    const m = Math.pow(1.2, i);
     return {
       oxygen:      Math.round(bases.oxygen  * m),
       water:       Math.round(bases.water   * m),
@@ -195,6 +206,27 @@ export function getMineRate(resourceType, level) {
 export function getTradePodSpeed() { return _config.special.tradePodSpeed; }
 
 export function getUnitStatsMap()  { return _config.unitStats; }
+
+export async function getBuffedUnitStats(baseId) {
+  const lab = await prisma.building.findUnique({
+    where: { baseId_type: { baseId, type: 'RESEARCH_LAB' } },
+  });
+  const effectiveLevel = lab ? (lab.upgradeEndsAt ? lab.level - 1 : lab.level) : 0;
+  const baseStats = getUnitStatsMap();
+  const buffMultiplier = 1 + effectiveLevel * 0.01;
+
+  const buffed = {};
+  for (const [type, stats] of Object.entries(baseStats)) {
+    buffed[type] = {
+      ...stats,
+      attack:        Math.round(stats.attack * buffMultiplier),
+      defense:       Math.round(stats.defense * buffMultiplier),
+      speed:         Math.round(stats.speed * buffMultiplier),
+      carryCapacity: Math.round(stats.carryCapacity * buffMultiplier),
+    };
+  }
+  return { stats: buffed, labLevel: effectiveLevel, buffPct: effectiveLevel };
+}
 
 export function getHeliumUpkeepMap() { return _config.heliumUpkeep; }
 

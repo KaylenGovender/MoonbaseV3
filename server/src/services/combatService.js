@@ -1,5 +1,5 @@
 import { prisma } from '../prisma/client.js';
-import { getUnitStatsMap, getBunkerProtection } from '../services/gameConfigService.js';
+import { getUnitStatsMap, getBunkerProtection, getBuffedUnitStats } from '../services/gameConfigService.js';
 import { addResources } from './resourceEngine.js';
 
 /**
@@ -50,18 +50,24 @@ export async function resolveBattle(attack) {
     }
   }
 
+  // ── Fetch buffed stats for attacker and defender ────────────────────────
+  const attackerBuffed = await getBuffedUnitStats(attack.attackerBaseId);
+  const defenderBuffed = await getBuffedUnitStats(attack.defenderBaseId);
+  const atkStats = attackerBuffed.stats;
+  const defStats = defenderBuffed.stats;
+
   // ── Calculate totals ──────────────────────────────────────────────────────
   let totalAttack = 0;
   let totalDefense = 0;
 
   for (const [type, count] of Object.entries(attackingUnits)) {
-    if (getUnitStatsMap()[type] && count > 0) {
-      totalAttack += getUnitStatsMap()[type].attack * count;
+    if (atkStats[type] && count > 0) {
+      totalAttack += atkStats[type].attack * count;
     }
   }
   for (const [type, count] of Object.entries(defendingUnits)) {
-    if (getUnitStatsMap()[type] && count > 0) {
-      totalDefense += getUnitStatsMap()[type].defense * count;
+    if (defStats[type] && count > 0) {
+      totalDefense += defStats[type].defense * count;
     }
   }
 
@@ -71,7 +77,7 @@ export async function resolveBattle(attack) {
   for (const [ownerId, units] of Object.entries(reinfUnitsByOwner)) {
     let ownerDef = 0;
     for (const [type, qty] of Object.entries(units)) {
-      ownerDef += (getUnitStatsMap()[type]?.defense ?? 0) * qty;
+      ownerDef += (defStats[type]?.defense ?? 0) * qty;
     }
     defenseByOwner[ownerId] = ownerDef;
   }
@@ -151,11 +157,11 @@ export async function resolveBattle(attack) {
     const bunkerEffLevel = bunkerBuilding?.upgradeEndsAt ? bunkerBuilding.level - 1 : bunkerBuilding?.level ?? 0;
     const protection = getBunkerProtection(bunkerEffLevel) / 100;
 
-    // Carry capacity based on surviving attacking units
+    // Carry capacity based on surviving attacking units (using buffed stats)
     let maxCarry = 0;
     for (const [type, surviving] of Object.entries(survivingAttackerUnits)) {
-      if (getUnitStatsMap()[type]) {
-        maxCarry += getUnitStatsMap()[type].carryCapacity * surviving;
+      if (atkStats[type]) {
+        maxCarry += atkStats[type].carryCapacity * surviving;
       }
     }
 
@@ -222,14 +228,35 @@ export async function resolveBattle(attack) {
     // Attacker medals
     await upsertMedal(attackerBase.userId, season.id, week, {
       attackerPoints: attackerPointsChange,
-      raiderPoints:   Math.floor(totalLooted / 50),
+      raiderPoints:   totalLooted,
     });
 
     // Distribute defender points proportionally based on defense contribution
     const totalDefContrib = Object.values(defenseByOwner).reduce((a, b) => a + b, 0) || 1;
-    for (const [userId, defContrib] of Object.entries(defenseByOwner)) {
+    const defenderEntries = Object.entries(defenseByOwner);
+    let distributedTotal = 0;
+    const pointsPerOwner = [];
+    for (const [userId, defContrib] of defenderEntries) {
       const proportion = defContrib / totalDefContrib;
-      const points = Math.round(defenderPointsChange * proportion);
+      // Use ceil for positive (so everyone gets at least 1), floor for negative
+      let points;
+      if (defenderPointsChange > 0) {
+        points = Math.ceil(defenderPointsChange * proportion);
+      } else {
+        points = Math.floor(defenderPointsChange * proportion);
+      }
+      pointsPerOwner.push({ userId, points });
+      distributedTotal += points;
+    }
+    // Clamp total so we don't exceed the original amount
+    const excess = distributedTotal - defenderPointsChange;
+    if (excess !== 0 && pointsPerOwner.length > 0) {
+      // Adjust the largest contributor to absorb the rounding excess
+      const adjustIdx = pointsPerOwner.reduce((best, cur, i) =>
+        Math.abs(cur.points) > Math.abs(pointsPerOwner[best].points) ? i : best, 0);
+      pointsPerOwner[adjustIdx].points -= excess;
+    }
+    for (const { userId, points } of pointsPerOwner) {
       if (points !== 0) {
         await upsertMedal(userId, season.id, week, {
           defenderPoints: points,

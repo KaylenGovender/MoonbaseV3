@@ -30,8 +30,8 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🌙</div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Moonbase</h1>
-          <p className="text-slate-400 text-sm mt-1">Lunar Colony Commander</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Lunara</h1>
+          <p className="text-slate-400 text-sm mt-1">Lunar Colony Strategy</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
@@ -72,6 +72,12 @@ export default function Login() {
           <button className="btn-primary w-full" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
+
+          <p className="text-center text-sm">
+            <Link to="/forgot-password" className="text-amber-400 hover:text-amber-300">
+              Forgot Password?
+            </Link>
+          </p>
 
           <p className="text-center text-sm text-slate-400">
             No base yet?{' '}

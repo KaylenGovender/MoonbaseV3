@@ -21,7 +21,7 @@ function buildingLevelCost(type, level, gameConfig) {
   const bases = gameConfig?.buildingBases?.[type];
   if (!bases || level < 1 || level > 20) return null;
   const i = level - 1;
-  const m = Math.pow(1.6, i);
+  const m = Math.pow(1.2, i);
   return {
     oxygen:      Math.round(bases.oxygen  * m),
     water:       Math.round(bases.water   * m),
@@ -33,7 +33,7 @@ function buildingLevelCost(type, level, gameConfig) {
 
 function getBuildingEffect(type, level, special) {
   const siloBase     = special?.siloBase     ?? 1500;
-  const siloPerLevel = special?.siloPerLevel ?? 500;
+  const siloPerLevel = special?.siloPerLevel ?? 750;
   const bunkerMax    = special?.bunkerMaxPct ?? 40;
   const radarBase    = special?.radarBase    ?? 20;
   const radarPer     = special?.radarPerLevel ?? 5;
@@ -100,6 +100,8 @@ export default function BuildingDetail() {
     }
   }
 
+  const isResearchLab = typeKey === 'RESEARCH_LAB';
+
   const currentLevel = building?.level ?? 0;
   const nextLevel    = currentLevel + 1;
   const cost         = nextLevel <= 20 ? buildingLevelCost(typeKey, nextLevel, gameConfig) : null;
@@ -134,6 +136,14 @@ export default function BuildingDetail() {
             <span className="text-2xl font-bold text-white font-mono">{effectiveLevel}</span>
           </div>
           <div className="text-sm text-slate-300">{getBuildingEffect(typeKey, effectiveLevel, gameSpecial)}</div>
+          {isResearchLab && (
+            <button
+              onClick={() => navigate('/base/research-lab')}
+              className="mt-2 w-full text-sm font-semibold text-green-300 bg-green-900/40 border border-green-700/50 rounded-lg px-4 py-2 hover:bg-green-800/50 transition-colors"
+            >
+              🔬 View Research Lab
+            </button>
+          )}
         </div>
 
         {isUpgrading ? (
@@ -149,11 +159,11 @@ export default function BuildingDetail() {
 
             <div>
               <div className="section-title">Cost</div>
-              <div className="space-y-1">
-                {cost.oxygen  > 0 && <ResourceCostRow label="O₂ Oxygen"  color="text-sky-400"    cost={cost.oxygen}  have={resources?.oxygen}  />}
-                {cost.water   > 0 && <ResourceCostRow label="H₂O Water"  color="text-blue-400"   cost={cost.water}   have={resources?.water}   />}
-                {cost.iron    > 0 && <ResourceCostRow label="Fe Iron"     color="text-orange-400" cost={cost.iron}    have={resources?.iron}    />}
-                {cost.helium3 > 0 && <ResourceCostRow label="He3"         color="text-red-400"    cost={cost.helium3} have={resources?.helium3} />}
+              <div className="space-y-3">
+                {cost.oxygen  > 0 && <ResourceCostRow label="Oxygen"    color="text-sky-400"    icon="O₂"  cost={cost.oxygen}  have={resources?.oxygen}  />}
+                {cost.water   > 0 && <ResourceCostRow label="Water"     color="text-blue-400"   icon="H₂O" cost={cost.water}   have={resources?.water}   />}
+                {cost.iron    > 0 && <ResourceCostRow label="Iron"      color="text-orange-400" icon="Fe"   cost={cost.iron}    have={resources?.iron}    />}
+                {cost.helium3 > 0 && <ResourceCostRow label="Helium-3"  color="text-red-400"    icon="He3"  cost={cost.helium3} have={resources?.helium3} />}
               </div>
             </div>
 
@@ -184,17 +194,29 @@ export default function BuildingDetail() {
   );
 }
 
-function ResourceCostRow({ label, color, cost, have }) {
-  const h = Math.floor(have ?? 0);
-  const canAfford = h >= cost;
+function ResourceCostRow({ label, color, icon, cost, have }) {
+  const enough = (have ?? 0) >= cost;
+  const pct = Math.min(((have ?? 0) / (cost || 1)) * 100, 100);
+
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-space-600/30 last:border-0 text-sm">
-      <span className={color}>{label}</span>
-      <span className="font-mono">
-        <span className={canAfford ? 'text-white' : 'text-red-400'}>{formatNumber(cost)}</span>
-        <span className="text-slate-500 mx-1">/</span>
-        <span className={canAfford ? 'text-green-400' : 'text-red-400'}>{formatNumber(h)}</span>
-      </span>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm ${color}`}>{icon}</span>
+          <span className={`text-xs ${color} font-medium`}>{label}</span>
+        </div>
+        <div className="text-xs font-mono">
+          <span className={enough ? 'text-green-400' : 'text-red-400'}>{formatNumber(have ?? 0)}</span>
+          <span className="text-slate-600"> / </span>
+          <span className="text-slate-400">{formatNumber(cost)}</span>
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full bg-space-600 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${enough ? 'bg-green-500' : 'bg-red-500'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

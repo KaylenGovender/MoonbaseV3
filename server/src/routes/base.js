@@ -66,9 +66,9 @@ router.post('/claim', requireAuth, async (req, res) => {
     const allBases = await prisma.base.findMany({ where: { seasonId: season.id } });
     const tooClose = allBases.some((b) => {
       const dx = b.x - cx, dy = b.y - cy;
-      return Math.sqrt(dx * dx + dy * dy) < 2;
+      return Math.sqrt(dx * dx + dy * dy) < 15;
     });
-    if (tooClose) return res.status(400).json({ error: 'Too close to another base' });
+    if (tooClose) return res.status(400).json({ error: 'Too close to another base (minimum 15km)' });
 
     const baseNumber = myBases.length + 1;
     const newBase = await prisma.base.create({

@@ -4,13 +4,14 @@ import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import PlayerProfileModal from '../components/PlayerProfileModal.jsx';
+import { Users, UserCheck, Swords, Shield, Coins } from 'lucide-react';
 
 const TABS = [
-  { key: 'alliances', label: 'Alliances',   icon: '🤝' },
-  { key: 'population', label: 'Population', icon: '👥' },
-  { key: 'attacker',  label: 'Attackers',   icon: '⚔️' },
-  { key: 'defender',  label: 'Defenders',   icon: '🛡️' },
-  { key: 'raider',    label: 'Raiders',     icon: '💰' },
+  { key: 'alliances', label: 'Alliances',  Icon: Users },
+  { key: 'population', label: 'Population', Icon: UserCheck },
+  { key: 'attacker',  label: 'Attackers',  Icon: Swords },
+  { key: 'defender',  label: 'Defenders',  Icon: Shield },
+  { key: 'raider',    label: 'Raiders',    Icon: Coins },
 ];
 
 function formatCountdownFull(ms) {
@@ -139,6 +140,7 @@ export default function Leaderboard() {
             <div className="stat-row"><span className="text-slate-400">Population Pts</span><span className="text-white font-mono">{formatNumber(myRank.populationPoints)}</span></div>
             <div className="stat-row"><span className="text-slate-400">⚔️ Attacker Pts</span><span className="text-white font-mono">{formatNumber(myRank.attackerMedals)}</span></div>
             <div className="stat-row"><span className="text-slate-400">🛡️ Defender Pts</span><span className="text-white font-mono">{formatNumber(myRank.defenderMedals)}</span></div>
+            <div className="stat-row"><span className="text-slate-400">💰 Raider Pts</span><span className="text-white font-mono">{formatNumber(myRank.raiderMedals)}</span></div>
           </div>
         </div>
       )}
@@ -149,10 +151,11 @@ export default function Leaderboard() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-none px-3 py-2.5 text-[11px] font-medium transition-colors
+            className={`flex-none px-3 py-2.5 text-[11px] font-medium transition-colors flex items-center gap-1
               ${tab === t.key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}
           >
-            {t.icon} {t.label}
+            <t.Icon size={14} strokeWidth={1.8} />
+            {t.label}
           </button>
         ))}
       </div>

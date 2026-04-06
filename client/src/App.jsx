@@ -5,6 +5,8 @@ import { useBaseStore } from './store/baseStore.js';
 import { useSocketStore } from './store/socketStore.js';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import Base from './pages/Base.jsx';
 import MapPage from './pages/MapPage.jsx';
 import WarRoom from './pages/WarRoom.jsx';
@@ -143,6 +145,8 @@ export default function App() {
       <Routes>
         <Route path="/login"    element={<Login    />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route
           path="/*"
