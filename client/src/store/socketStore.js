@@ -11,10 +11,13 @@ export const useSocketStore = create((set, get) => ({
   socket:    null,
   connected: false,
   allianceNotif: false, // unread alliance chat/request/invite
-  chatNotif: false,     // unread DM messages
+  unreadChatCount: 0,  // unread DM message count
+  medalBanner: null,    // { week, winners: { attacker, defender, raider } }
 
   clearAllianceNotif: () => set({ allianceNotif: false }),
-  clearChatNotif:     () => set({ chatNotif: false }),
+  clearChatNotif:     () => set({ unreadChatCount: 0 }),
+  setMedalBanner:     (data) => set({ medalBanner: data }),
+  dismissMedalBanner: () => set({ medalBanner: null }),
 
   connect: (token) => {
     // Destroy any existing socket before creating a new one (prevents duplicate listeners)
@@ -100,10 +103,20 @@ export const useSocketStore = create((set, get) => ({
       if (msg.allianceId && !window.location.pathname.startsWith('/alliance')) {
         set({ allianceNotif: true });
       }
-      // DM messages trigger chat tab notification when user isn't on /chat
-      if (!msg.allianceId && msg.toUserId && !window.location.pathname.startsWith('/chat')) {
-        set({ chatNotif: true });
+      // DM messages trigger chat tab notification when user isn't viewing
+      // that specific conversation (not just "not on /chat")
+      if (!msg.allianceId && msg.toUserId) {
+        const path = window.location.pathname;
+        const viewingThisDM = path === `/chat/${msg.fromUserId}`;
+        if (!viewingThisDM) {
+          set((s) => ({ unreadChatCount: s.unreadChatCount + 1 }));
+        }
       }
+    });
+
+    // Medal banner notification
+    socket.on('medals:awarded', (data) => {
+      set({ medalBanner: data });
     });
 
     set({ socket });

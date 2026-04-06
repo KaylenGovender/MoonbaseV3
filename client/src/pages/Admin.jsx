@@ -1183,15 +1183,24 @@ export default function Admin() {
                   <div key={r.id ?? i} className="rounded-lg bg-space-700/50 px-3 py-2">
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-white">
-                        <span className="text-red-400">{r.attackerName ?? r.attacker ?? '?'}</span>
+                        <span className="text-red-400">{r.attackerName ?? '?'}</span>
                         {' vs '}
-                        <span className="text-blue-400">{r.defenderName ?? r.defender ?? '?'}</span>
+                        <span className="text-blue-400">{r.defenderName ?? '?'}</span>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.winner === 'attacker' ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}`}>
-                        {r.winner ?? r.outcome ?? '?'}
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.attackerWon ? 'bg-red-900/50 text-red-300' : 'bg-blue-900/50 text-blue-300'}`}>
+                        {r.attackerWon ? 'Attacker Won' : 'Defender Won'}
                       </span>
                     </div>
-                    {r.createdAt && <div className="text-[10px] text-slate-600 mt-0.5">{new Date(r.createdAt).toLocaleString()}</div>}
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="text-[10px] text-slate-500">
+                        {r.resourcesLooted && Object.values(r.resourcesLooted).reduce((s, v) => s + (v ?? 0), 0) > 0
+                          ? `Looted: ${Object.entries(r.resourcesLooted).filter(([,v]) => v > 0).map(([k,v]) => `${k} ${v}`).join(', ')}`
+                          : 'No loot'}
+                      </div>
+                      <div className="text-[10px] text-slate-600">
+                        {r.reportedAt ? new Date(r.reportedAt).toLocaleString() : ''}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1240,7 +1249,7 @@ export default function Admin() {
               {/* Buildings */}
               {configSection === 'buildings' && (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-slate-500 uppercase font-semibold">Base costs (level 1) — multiplied by 1.6ⁿ per level</p>
+                  <p className="text-[10px] text-slate-500 uppercase font-semibold">Base costs (level 1) — multiplied by 1.2ⁿ per level</p>
                   {Object.entries(gameConfig.buildingBases ?? {}).map(([type, b]) => (
                     <div key={type} className="card space-y-2">
                       <div className="flex items-center justify-between">

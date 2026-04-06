@@ -83,18 +83,30 @@ async function awardWeeklyMedalsForWeek(season, weekNumber) {
   const topDefender = pos(medals, 'defenderPoints');
   const topRaider   = pos(medals, 'raiderPoints');
 
-  const toAward = [topAttacker, topDefender, topRaider].filter(Boolean);
-  for (const medal of toAward) {
-    await prisma.medal.update({ where: { id: medal.id }, data: { rewardGiven: true } });
+  // Award each category independently — a player who tops Attacker must NOT
+  // get rewardGiven on their Defender record (they may be different medal rows,
+  // but could also be the same row). We track which ids have already been marked.
+  const awarded = new Set();
+  for (const medal of [topAttacker, topDefender, topRaider].filter(Boolean)) {
+    if (!awarded.has(medal.id)) {
+      await prisma.medal.update({ where: { id: medal.id }, data: { rewardGiven: true } });
+      awarded.add(medal.id);
+    }
   }
 
   if (io) {
+    const winners = {
+      attacker: topAttacker?.user?.username ?? null,
+      defender: topDefender?.user?.username ?? null,
+      raider:   topRaider?.user?.username   ?? null,
+    };
     io.emit('leaderboard:medals_awarded', {
       week: weekNumber,
       topAttacker: topAttacker ? { username: topAttacker.user.username, points: topAttacker.attackerPoints } : null,
       topDefender: topDefender ? { username: topDefender.user.username, points: topDefender.defenderPoints } : null,
       topRaider:   topRaider   ? { username: topRaider.user.username,   points: topRaider.raiderPoints   } : null,
     });
+    io.emit('medals:awarded', { week: weekNumber, winners });
   }
 
   console.log(`🏅 Medals awarded for week ${weekNumber}:`);

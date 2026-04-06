@@ -125,6 +125,12 @@ export default function WarRoom() {
   const outgoing   = reinforcements.outgoing ?? [];
   const incoming   = reinforcements.incoming ?? [];
 
+  // Unit movement: attacks launched from this base that are in flight or returning
+  const base = useBaseStore((s) => s.base);
+  const attacksLaunched = base?.attacksLaunched ?? [];
+  const inFlightAttacks = attacksLaunched.filter((a) => a.status === 'IN_FLIGHT');
+  const returningAttacks = attacksLaunched.filter((a) => a.status === 'RETURNING');
+
   return (
     <div className="page">
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
@@ -140,9 +146,12 @@ export default function WarRoom() {
 
         {/* Build Queue */}
         {buildQueue.length > 0 && (() => {
+          // Filter out jobs that have already completed (2s buffer for server processing delay)
+          const pendingQueue = buildQueue.filter(j => new Date(j.completesAt).getTime() > Date.now() - 2000);
+          if (pendingQueue.length === 0) return null;
           // Group build jobs by unit type for compact display
           const grouped = {};
-          for (const job of buildQueue) {
+          for (const job of pendingQueue) {
             if (!grouped[job.unitType]) {
               grouped[job.unitType] = { unitType: job.unitType, jobs: [], totalRemaining: 0, earliestCompletes: null, latestCompletes: null };
             }
@@ -205,6 +214,49 @@ export default function WarRoom() {
           </div>
           );
         })()}
+
+        {/* Units on the Move */}
+        {(inFlightAttacks.length > 0 || returningAttacks.length > 0) && (
+          <div>
+            <p className="section-title">Units on the Move</p>
+            <div className="space-y-2">
+              {inFlightAttacks.map((a) => (
+                <div key={a.id} className="card">
+                  <div className="flex items-center gap-2 text-sm text-white">
+                    <span>⚔️ →</span>
+                    <span className="flex-1 truncate">{a.defenderBase?.name ?? 'Unknown'}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-900/50 text-red-300">IN FLIGHT</span>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {Object.entries(a.units ?? {}).filter(([, n]) => n > 0).map(([t, n]) => `${n}× ${UNIT_META[t]?.label ?? t}`).join(', ')}
+                  </div>
+                  {a.arrivalTime && (
+                    <div className="text-xs text-blue-400 mt-0.5">
+                      ⏱ ETA: {formatCountdown(new Date(a.arrivalTime))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {returningAttacks.map((a) => (
+                <div key={a.id} className="card">
+                  <div className="flex items-center gap-2 text-sm text-white">
+                    <span>↩️ ←</span>
+                    <span className="flex-1 truncate">{a.defenderBase?.name ?? 'Unknown'}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300">RETURNING</span>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {Object.entries(a.units ?? {}).filter(([, n]) => n > 0).map(([t, n]) => `${n}× ${UNIT_META[t]?.label ?? t}`).join(', ')}
+                  </div>
+                  {a.returnTime && (
+                    <div className="text-xs text-green-400 mt-0.5">
+                      ⏱ Returns: {formatCountdown(new Date(a.returnTime))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Active Reinforcements */}
         {(outgoing.length > 0 || incoming.length > 0) && (

@@ -12,9 +12,12 @@ import Alliance from './pages/Alliance.jsx';
 import Leaderboard from './pages/Leaderboard.jsx';
 import ResourceDetail from './pages/ResourceDetail.jsx';
 import BuildingDetail from './pages/BuildingDetail.jsx';
+import ResearchLab from './pages/ResearchLab.jsx';
 import Admin from './pages/Admin.jsx';
 import ChatPage from './pages/ChatPage.jsx';
 import NavBar from './components/NavBar.jsx';
+import MedalBanner from './components/MedalBanner.jsx';
+import BattleReportsPage from './pages/BattleReportsPage.jsx';
 
 import { APP_VERSION } from './utils/gameConstants.js';
 
@@ -23,6 +26,16 @@ const VERSION_CHECK_KEY = 'versionReloaded';
 function RequireAuth({ children }) {
   const token = useAuthStore((s) => s.token);
   return token ? children : <Navigate to="/login" replace />;
+}
+
+function RequireSeason({ children }) {
+  const bases = useAuthStore((s) => s.bases);
+  const user = useAuthStore((s) => s.user);
+  // If no bases (no active season) and not admin, redirect to /base
+  if (bases.length === 0 && !user?.isAdmin) {
+    return <Navigate to="/base" replace />;
+  }
+  return children;
 }
 
 function ToastContainer() {
@@ -116,6 +129,7 @@ function AuthLayout({ children }) {
           <span>📢</span> <span>{announcement}</span>
         </div>
       )}
+      <MedalBanner />
       {children}
       <NavBar />
       <ToastContainer />
@@ -138,14 +152,16 @@ export default function App() {
                 <Routes>
                   <Route index element={<Navigate to="/base" replace />} />
                   <Route path="base"                          element={<Base           />} />
-                  <Route path="base/resource/:type"          element={<ResourceDetail />} />
-                  <Route path="base/building/:buildingType"  element={<BuildingDetail />} />
-                  <Route path="map"                          element={<MapPage        />} />
-                  <Route path="warroom"                      element={<WarRoom        />} />
-                  <Route path="alliance"                     element={<Alliance       />} />
-                  <Route path="leaderboard"                  element={<Leaderboard   />} />
-                  <Route path="chat"                         element={<ChatPage      />} />
-                  <Route path="chat/:targetId"               element={<ChatPage      />} />
+                  <Route path="base/reports"                  element={<BattleReportsPage />} />
+                  <Route path="base/resource/:type"          element={<RequireSeason><ResourceDetail /></RequireSeason>} />
+                  <Route path="base/building/:buildingType"  element={<RequireSeason><BuildingDetail /></RequireSeason>} />
+                  <Route path="base/research-lab"            element={<RequireSeason><ResearchLab   /></RequireSeason>} />
+                  <Route path="map"                          element={<RequireSeason><MapPage        /></RequireSeason>} />
+                  <Route path="warroom"                      element={<RequireSeason><WarRoom        /></RequireSeason>} />
+                  <Route path="alliance"                     element={<RequireSeason><Alliance       /></RequireSeason>} />
+                  <Route path="leaderboard"                  element={<RequireSeason><Leaderboard   /></RequireSeason>} />
+                  <Route path="chat"                         element={<RequireSeason><ChatPage      /></RequireSeason>} />
+                  <Route path="chat/:targetId"               element={<RequireSeason><ChatPage      /></RequireSeason>} />
                   <Route path="admin"                        element={<Admin          />} />
                   <Route path="*"                            element={<Navigate to="/base" replace />} />
                 </Routes>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '../utils/format.js';
 
 const UNIT_LABELS = {
@@ -22,11 +23,13 @@ function timeAgo(dateStr) {
 }
 
 export default function BattleReports({ attacks, baseId }) {
-  // Merge all completed battles, sort latest first, take last 10
-  const reports = attacks
+  const navigate = useNavigate();
+
+  // Merge all completed battles, sort latest first, take last 5
+  const allReports = attacks
     .filter((a) => a.battleReport)
-    .sort((a, b) => new Date(b.updatedAt ?? b.createdAt) - new Date(a.updatedAt ?? a.createdAt))
-    .slice(0, 5);
+    .sort((a, b) => new Date(b.battleReport?.reportedAt) - new Date(a.battleReport?.reportedAt));
+  const reports = allReports.slice(0, 5);
 
   return (
     <div>
@@ -38,13 +41,21 @@ export default function BattleReports({ attacks, baseId }) {
           {reports.map((attack) => (
             <ReportCard key={attack.id} attack={attack} baseId={baseId} />
           ))}
+          {allReports.length > 5 && (
+            <button
+              onClick={() => navigate('/base/reports')}
+              className="w-full text-center text-xs text-blue-400 hover:text-blue-300 py-2"
+            >
+              View All (Last 24h) →
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function ReportCard({ attack, baseId }) {
+export function ReportCard({ attack, baseId }) {
   const [open, setOpen] = useState(false);
   const r = attack.battleReport;
   if (!r) return null;
@@ -79,7 +90,7 @@ function ReportCard({ attack, baseId }) {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-base">{won ? '🏆' : '💀'}</span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-white truncate">
+            <div className="text-xs font-semibold text-white truncate max-w-[180px]">
               {isOut ? `⚔️ You attacked ${opponentName}` : `🛡 ${opponentName} attacked you`}
             </div>
             <div className="text-xs text-slate-500">{timeAgo(attack.updatedAt ?? attack.createdAt)}</div>
@@ -102,6 +113,12 @@ function ReportCard({ attack, baseId }) {
           {unitTypes.length > 0 && (
             <div className="space-y-1.5">
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Your Forces</div>
+              <div className="grid grid-cols-[1fr_4rem_4rem_4rem] text-xs px-3 py-1 text-slate-500">
+                <span>Unit</span>
+                <span className="text-right">{isOut ? 'Sent' : 'Had'}</span>
+                <span className="text-right">Lost</span>
+                <span className="text-right">{isOut ? 'Returned' : 'Remaining'}</span>
+              </div>
               {unitTypes.map((type) => {
                 const sent  = attackSent[type] ?? 0;
                 const lost  = isOut ? (attackLost[type] ?? 0) : (defLost[type] ?? 0);
@@ -109,33 +126,35 @@ function ReportCard({ attack, baseId }) {
                 if (had === 0) return null;
                 const back  = Math.max(had - lost, 0);
                 return (
-                  <div key={type} className="flex items-center justify-between text-xs bg-space-800/60 rounded-lg px-3 py-1.5">
+                  <div key={type} className="grid grid-cols-[1fr_4rem_4rem_4rem] text-xs bg-space-800/60 rounded-lg px-3 py-1.5">
                     <span className="text-slate-300">{UNIT_LABELS[type] ?? type}</span>
-                    <div className="flex items-center gap-3">
-                      {isOut && <span className="text-slate-400">Sent: <span className="text-white font-mono">{sent}</span></span>}
-                      {!isOut && <span className="text-slate-400">Had: <span className="text-white font-mono">{had}</span></span>}
-                      <span className="text-red-400">Lost: <span className="font-mono">{lost}</span></span>
-                      {isOut && <span className="text-sky-400">Returned: <span className="font-mono">{back}</span></span>}
-                      {!isOut && <span className="text-green-400">Remaining: <span className="font-mono">{back}</span></span>}
-                    </div>
+                    <span className="text-right text-white font-mono">{had}</span>
+                    <span className="text-right text-red-400 font-mono">{lost}</span>
+                    {isOut
+                      ? <span className="text-right text-sky-400 font-mono">{back}</span>
+                      : <span className="text-right text-green-400 font-mono">{back}</span>}
                   </div>
                 );
               })}
 
               {/* Enemy forces */}
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-2">Enemy Forces</div>
+              <div className="grid grid-cols-[1fr_4rem_4rem_4rem] text-xs px-3 py-1 text-slate-500">
+                <span>Unit</span>
+                <span className="text-right">Had</span>
+                <span className="text-right">Lost</span>
+                <span className="text-right">Left</span>
+              </div>
               {unitTypes.map((type) => {
                 const had  = isOut ? (defHad[type] ?? 0) : (attackSent[type] ?? 0);
                 const lost = isOut ? (defLost[type] ?? 0) : (attackLost[type] ?? 0);
                 if (had === 0) return null;
                 return (
-                  <div key={`e-${type}`} className="flex items-center justify-between text-xs bg-space-800/60 rounded-lg px-3 py-1.5">
+                  <div key={`e-${type}`} className="grid grid-cols-[1fr_4rem_4rem_4rem] text-xs bg-space-800/60 rounded-lg px-3 py-1.5">
                     <span className="text-slate-300">{UNIT_LABELS[type] ?? type}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400">Had: <span className="text-white font-mono">{had}</span></span>
-                      <span className="text-red-400">Lost: <span className="font-mono">{lost}</span></span>
-                      <span className="text-slate-400">Left: <span className="font-mono">{Math.max(had - lost, 0)}</span></span>
-                    </div>
+                    <span className="text-right text-white font-mono">{had}</span>
+                    <span className="text-right text-red-400 font-mono">{lost}</span>
+                    <span className="text-right text-slate-400 font-mono">{Math.max(had - lost, 0)}</span>
                   </div>
                 );
               })}
@@ -161,16 +180,34 @@ function ReportCard({ attack, baseId }) {
           </div>
 
           {/* Points */}
-          <div className="flex gap-3 text-xs">
-            {r.attackerPointsChange !== undefined && (
-              <span className={r.attackerPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
-                Attacker pts: {r.attackerPointsChange > 0 ? '+' : ''}{r.attackerPointsChange}
-              </span>
-            )}
-            {r.defenderPointsChange !== undefined && (
-              <span className={r.defenderPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
-                Defender pts: {r.defenderPointsChange > 0 ? '+' : ''}{r.defenderPointsChange}
-              </span>
+          <div className="flex flex-col gap-1 text-xs">
+            {isOut ? (
+              <>
+                {r.attackerPointsChange !== undefined && (
+                  <span className={r.attackerPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    Your Points: {r.attackerPointsChange > 0 ? '+' : ''}{r.attackerPointsChange} ATK
+                    {totalLooted > 0 && <span className="text-yellow-400 ml-1">+{Math.floor(totalLooted / 50)} Raider</span>}
+                  </span>
+                )}
+                {r.defenderPointsChange !== undefined && (
+                  <span className={r.defenderPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    Opponent: {r.defenderPointsChange > 0 ? '+' : ''}{r.defenderPointsChange} DEF
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {r.defenderPointsChange !== undefined && (
+                  <span className={r.defenderPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    Your Points: {r.defenderPointsChange > 0 ? '+' : ''}{r.defenderPointsChange} DEF
+                  </span>
+                )}
+                {r.attackerPointsChange !== undefined && (
+                  <span className={r.attackerPointsChange >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    Opponent: {r.attackerPointsChange > 0 ? '+' : ''}{r.attackerPointsChange} ATK
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
