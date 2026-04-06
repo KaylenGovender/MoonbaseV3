@@ -6,6 +6,7 @@ import { api } from '../utils/api.js';
 import { formatNumber, formatCountdown } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from '../components/UnitIcon.jsx';
+import { Swords, ArrowUpRight, ArrowDownLeft, CheckCircle, Clock, RotateCcw } from 'lucide-react';
 
 const UNIT_TYPES = ['MOONBUGGY', 'GUNSHIP', 'TANK', 'HARVESTER', 'DRONE', 'TITAN'];
 
@@ -135,7 +136,7 @@ export default function WarRoom() {
   return (
     <div className="page">
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
-        <h1 className="text-sm font-semibold text-white">⚔️ War Room</h1>
+        <h1 className="text-sm font-semibold text-white flex items-center gap-1.5"><Swords size={16} className="text-red-400" /> War Room</h1>
       </div>
 
       <div className="px-4 py-4 space-y-5">
@@ -169,7 +170,7 @@ export default function WarRoom() {
             <p className="section-title">Build Queue</p>
             <div className="space-y-2">
               {Object.values(grouped).map((g) => {
-                const meta = UNIT_META[g.unitType] ?? { icon: '⚔️', label: g.unitType };
+                const meta = UNIT_META[g.unitType] ?? { label: g.unitType };
                 const lastJob = g.jobs[g.jobs.length - 1];
                 return (
                   <div key={g.unitType} className="card">
@@ -191,8 +192,8 @@ export default function WarRoom() {
                         </div>
                         {confirmCancel === g.unitType ? (
                           <div className="flex gap-1">
-                            <button onClick={() => cancelJob(lastJob.id)} className="btn-danger text-xs px-2 py-1">✓</button>
-                            <button onClick={() => setConfirmCancel(null)} className="btn-ghost text-xs px-2 py-1">✕</button>
+                            <button onClick={() => cancelJob(lastJob.id)} className="btn-danger text-xs px-2 py-1">OK</button>
+                            <button onClick={() => setConfirmCancel(null)} className="btn-ghost text-xs px-2 py-1">×</button>
                           </div>
                         ) : (
                           <button onClick={() => setConfirmCancel(g.unitType)} className="btn-ghost text-xs px-2 py-1 text-red-400 border-red-800/50">Cancel</button>
@@ -224,7 +225,7 @@ export default function WarRoom() {
               {inFlightAttacks.map((a) => (
                 <div key={a.id} className="card">
                   <div className="flex items-center gap-2 text-sm text-white">
-                    <span>⚔️ →</span>
+                    <span className="flex items-center"><ArrowUpRight size={14} className="text-red-400" /></span>
                     <span className="flex-1 truncate">{a.defenderBase?.name ?? 'Unknown'}</span>
                     <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-900/50 text-red-300">IN FLIGHT</span>
                   </div>
@@ -232,8 +233,8 @@ export default function WarRoom() {
                     {Object.entries(a.units ?? {}).filter(([, n]) => n > 0).map(([t, n]) => `${n}× ${UNIT_META[t]?.label ?? t}`).join(', ')}
                   </div>
                   {a.arrivalTime && (
-                    <div className="text-xs text-blue-400 mt-0.5">
-                      ⏱ ETA: {formatCountdown(new Date(a.arrivalTime))}
+                    <div className="text-xs text-blue-400 mt-0.5 flex items-center gap-1">
+                      <Clock size={12} /> ETA: {formatCountdown(new Date(a.arrivalTime))}
                     </div>
                   )}
                 </div>
@@ -241,7 +242,7 @@ export default function WarRoom() {
               {returningAttacks.map((a) => (
                 <div key={a.id} className="card">
                   <div className="flex items-center gap-2 text-sm text-white">
-                    <span>↩️ ←</span>
+                    <span className="flex items-center"><ArrowDownLeft size={14} className="text-green-400" /></span>
                     <span className="flex-1 truncate">{a.defenderBase?.name ?? 'Unknown'}</span>
                     <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300">RETURNING</span>
                   </div>
@@ -249,8 +250,8 @@ export default function WarRoom() {
                     {Object.entries(a.units ?? {}).filter(([, n]) => n > 0).map(([t, n]) => `${n}× ${UNIT_META[t]?.label ?? t}`).join(', ')}
                   </div>
                   {a.returnTime && (
-                    <div className="text-xs text-green-400 mt-0.5">
-                      ⏱ Returns: {formatCountdown(new Date(a.returnTime))}
+                    <div className="text-xs text-green-400 mt-0.5 flex items-center gap-1">
+                      <Clock size={12} /> Returns: {formatCountdown(new Date(a.returnTime))}
                     </div>
                   )}
                 </div>
@@ -284,18 +285,23 @@ export default function WarRoom() {
                           {r.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
-                        {Object.entries(r.units).map(([t, n]) => `${UNIT_META[t]?.icon ?? t} ${n}`).join(' · ')}
+                      <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1 flex-wrap">
+                        {Object.entries(r.units).map(([t, n], i) => (
+                          <span key={t} className="inline-flex items-center gap-0.5">
+                            {i > 0 && <span className="mx-0.5">·</span>}
+                            <UnitIcon type={t} size={12} /> {n}
+                          </span>
+                        ))}
                       </div>
                       {etaStr && (
-                        <div className="text-xs text-blue-400 mt-0.5">
-                          ⏱ {r.status === 'RECALLED' ? 'Returns in' : 'Arrives in'} {etaStr}
+                        <div className="text-xs text-blue-400 mt-0.5 flex items-center gap-1">
+                          <Clock size={12} /> {r.status === 'RECALLED' ? 'Returns in' : 'Arrives in'} {etaStr}
                         </div>
                       )}
                     </div>
                     {r.status === 'IN_TRANSIT' && (
-                      <button onClick={() => recallReinforcement(r.id)} className="btn-ghost text-xs px-3 py-1 text-yellow-400 border-yellow-800/50 ml-2">
-                        📥 Recall
+                      <button onClick={() => recallReinforcement(r.id)} className="btn-ghost text-xs px-3 py-1 text-yellow-400 border-yellow-800/50 ml-2 flex items-center gap-1">
+                        <ArrowDownLeft size={12} /> Recall
                       </button>
                     )}
                   </div>
@@ -308,13 +314,18 @@ export default function WarRoom() {
                       <span>← {r.fromBase?.name ?? 'Unknown'}</span>
                       <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-900/50 text-green-300">ARRIVED</span>
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {Object.entries(r.units).map(([t, n]) => `${UNIT_META[t]?.icon ?? t} ${n}`).join(' · ')}
+                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1 flex-wrap">
+                      {Object.entries(r.units).map(([t, n], i) => (
+                        <span key={t} className="inline-flex items-center gap-0.5">
+                          {i > 0 && <span className="mx-0.5">·</span>}
+                          <UnitIcon type={t} size={12} /> {n}
+                        </span>
+                      ))}
                     </div>
-                    <div className="text-xs text-green-500 mt-0.5">✅ Defending your base</div>
+                    <div className="text-xs text-green-500 mt-0.5 flex items-center gap-1"><CheckCircle size={14} className="text-green-400" /> Defending your base</div>
                   </div>
-                  <button onClick={() => returnReinforcement(r.id)} className="btn-ghost text-xs px-3 py-1 text-orange-400 border-orange-800/50 ml-2">
-                    🔄 Return
+                  <button onClick={() => returnReinforcement(r.id)} className="btn-ghost text-xs px-3 py-1 text-orange-400 border-orange-800/50 ml-2 flex items-center gap-1">
+                    <RotateCcw size={12} /> Return
                   </button>
                 </div>
               ))}
@@ -328,7 +339,7 @@ export default function WarRoom() {
           <div className="grid grid-cols-3 gap-2">
             {UNIT_TYPES.map((type) => {
               const stock = unitStocks.find((s) => s.type === type);
-              const meta  = UNIT_META[type] ?? { icon: '⚔️', label: type };
+              const meta  = UNIT_META[type] ?? { label: type };
               return (
                 <div key={type} className="card text-center py-3">
                   <div className="text-2xl mb-1"><UnitIcon type={type} size={28} /></div>
@@ -347,7 +358,7 @@ export default function WarRoom() {
           <p className="section-title">Train Units</p>
           <div className="space-y-2">
             {UNIT_TYPES.map((type) => {
-              const meta = UNIT_META[type] ?? { icon: '⚔️', label: type };
+              const meta = UNIT_META[type] ?? { label: type };
               const s    = stats[type];
               if (!s) return null;
 
@@ -372,8 +383,8 @@ export default function WarRoom() {
                         <div className="text-[10px] text-slate-500">
                           ATK {s.attack} · DEF {s.defense} · {s.speed}km/h · Cap {s.carryCapacity} · <span className="text-red-400">He3 {gameConfig?.heliumUpkeep?.[type] ?? 0}/min</span>
                         </div>
-                        <div className="text-[10px] text-slate-600">
-                          ⏱ {s.buildTime ?? 30}s each
+                        <div className="text-[10px] text-slate-600 flex items-center gap-0.5 flex-wrap">
+                          <Clock size={10} /> {s.buildTime ?? 30}s each
                           {qty[type] > 0 && ` · Total: ${Math.ceil((s.buildTime ?? 30) * parseInt(qty[type] || 1) / 60)}m for ${qty[type]}`}
                         </div>
                       </div>

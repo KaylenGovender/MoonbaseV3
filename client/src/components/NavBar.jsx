@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useBaseStore } from '../store/baseStore.js';
 import { useSocketStore } from '../store/socketStore.js';
 import { useState, useEffect } from 'react';
-import { Home, Compass, Swords, Users, MessageCircle, Trophy, LayoutGrid, Settings } from 'lucide-react';
+import { Home, Compass, Swords, Users, MessageCircle, Trophy, LayoutGrid } from 'lucide-react';
 
 const MAIN_TABS = [
   { to: '/base',        label: 'Base',     Icon: Home },
@@ -41,9 +41,7 @@ export default function NavBar() {
   const attacksReceived = useBaseStore((s) => s.base?.attacksReceived ?? []);
   const hasIncomingAttack = attacksReceived.length > 0;
 
-  const tabs = user?.isAdmin
-    ? [...MAIN_TABS, { to: '/admin', label: 'Admin', Icon: Settings }]
-    : MAIN_TABS;
+  const tabs = MAIN_TABS;
 
   // Season gating: non-admin users with no bases can only access /base
   const hasBases = bases.length > 0;

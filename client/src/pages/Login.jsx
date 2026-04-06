@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { api } from '../utils/api.js';
+import { Moon } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ export default function Login() {
     <div className="min-h-screen bg-space-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🌙</div>
+          <div className="text-5xl mb-3"><Moon size={48} className="text-amber-300 mx-auto" /></div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Lunara</h1>
           <p className="text-slate-400 text-sm mt-1">Lunar Colony Strategy</p>
         </div>

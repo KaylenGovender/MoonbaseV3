@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../utils/api.js';
 import { getInitials } from '../utils/format.js';
 import DMChat from './DMChat.jsx';
+import { MessageCircle } from 'lucide-react';
 
 export default function ChatList({ onClose }) {
   const [conversations, setConversations] = useState([]);
@@ -38,7 +39,7 @@ export default function ChatList({ onClose }) {
         <div className="flex items-center gap-3 px-4 py-3 border-b border-space-600/50 bg-space-800/95 flex-shrink-0">
           <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">← Back</button>
           <div className="flex-1">
-            <div className="text-sm font-semibold text-white">💬 Messages</div>
+            <div className="text-sm font-semibold text-white flex items-center gap-1"><MessageCircle size={14} /> Messages</div>
           </div>
         </div>
 
@@ -48,7 +49,7 @@ export default function ChatList({ onClose }) {
             <div className="text-center py-8 text-slate-500 text-sm">Loading…</div>
           ) : conversations.length === 0 ? (
             <div className="text-center py-10 text-slate-600 text-sm">
-              <div className="text-3xl mb-2">💬</div>
+              <div className="text-3xl mb-2"><MessageCircle size={32} className="mx-auto text-slate-600" /></div>
               No conversations yet.<br />
               <span className="text-slate-500">Tap a player profile to start chatting.</span>
             </div>

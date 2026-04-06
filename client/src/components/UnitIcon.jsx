@@ -1,6 +1,8 @@
 // Inline SVG unit icons — colored silhouettes for each unit type
 // Rendered as inline <svg> elements, color controlled via className (currentColor)
 
+import { Swords } from 'lucide-react';
+
 const UNIT_COLORS = {
   MOONBUGGY: 'text-cyan-400',
   GUNSHIP:   'text-red-400',
@@ -102,7 +104,7 @@ const UNIT_COMPONENTS = {
 
 export default function UnitIcon({ type, size = 24, className }) {
   const SvgComponent = UNIT_COMPONENTS[type];
-  if (!SvgComponent) return <span className={className || 'text-white'}>⚔️</span>;
+  if (!SvgComponent) return <Swords size={size} className={className || 'text-white'} strokeWidth={1.8} />;
   const colorClass = className || UNIT_COLORS[type] || 'text-white';
   return (
     <SvgComponent

@@ -4,6 +4,7 @@ import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import { useAuthStore } from '../store/authStore.js';
+import { Users, MessageCircle, Trophy, Swords, Shield, Coins } from 'lucide-react';
 
 export default function PlayerProfileModal({ userId, username, onClose }) {
   const currentUser = useAuthStore((s) => s.user);
@@ -38,10 +39,10 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
           <div className="flex-1">
             <div className="text-white font-bold text-base">{username}</div>
             {profile?.alliance && (
-              <div className="text-xs text-yellow-400 mt-0.5">🤝 {profile.alliance}</div>
+              <div className="text-xs text-yellow-400 mt-0.5 flex items-center gap-1"><Users size={12} className="text-blue-400" /> {profile.alliance}</div>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-500 text-xl px-1">✕</button>
+          <button onClick={onClose} className="text-slate-500 text-xl px-1">×</button>
         </div>
 
         {/* Message button — don't show for own profile */}
@@ -51,7 +52,7 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
               onClick={openChat}
               className="w-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-xs py-2 rounded-xl font-semibold hover:bg-blue-800/50 transition-colors flex items-center justify-center gap-1.5"
             >
-              💬 Message
+              <MessageCircle size={14} /> Message
             </button>
           </div>
         )}
@@ -80,7 +81,7 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
                 </div>
                 <div className="card text-center py-3">
                   <div className="text-2xl font-bold text-yellow-300 font-mono">{profile.stats.lifetimeVictoryMedals ?? profile.stats.victoryMedals ?? 0}</div>
-                  <div className="text-[10px] text-slate-400 mt-1">🏆 Victory (All-Time)</div>
+                  <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-center gap-1"><Trophy size={14} className="text-amber-400" /> Victory (All-Time)</div>
                 </div>
               </div>
 
@@ -88,9 +89,9 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
               <div>
                 <p className="section-title mb-2">All-Time Medals</p>
                 <div className="grid grid-cols-3 gap-2">
-                  <MedalCard icon="⚔️" label="Attacker" count={profile.stats.lifetimeAttackerMedals ?? profile.stats.attackerMedals} pts={profile.stats.attackerPoints} color="text-red-400" />
-                  <MedalCard icon="🛡️" label="Defender" count={profile.stats.lifetimeDefenderMedals ?? profile.stats.defenderMedals} pts={profile.stats.defenderPoints} color="text-blue-400" />
-                  <MedalCard icon="💰" label="Raider"   count={profile.stats.lifetimeRaiderMedals   ?? profile.stats.raiderMedals}   pts={profile.stats.raiderPoints}   color="text-yellow-400" />
+                  <MedalCard icon={<Swords size={14} className="text-red-400" />} label="Attacker" count={profile.stats.lifetimeAttackerMedals ?? profile.stats.attackerMedals} pts={profile.stats.attackerPoints} color="text-red-400" />
+                  <MedalCard icon={<Shield size={14} className="text-blue-400" />} label="Defender" count={profile.stats.lifetimeDefenderMedals ?? profile.stats.defenderMedals} pts={profile.stats.defenderPoints} color="text-blue-400" />
+                  <MedalCard icon={<Coins size={14} className="text-amber-400" />} label="Raider"   count={profile.stats.lifetimeRaiderMedals   ?? profile.stats.raiderMedals}   pts={profile.stats.raiderPoints}   color="text-yellow-400" />
                 </div>
               </div>
             </>
@@ -104,7 +105,7 @@ export default function PlayerProfileModal({ userId, username, onClose }) {
 function MedalCard({ icon, label, count, pts, color }) {
   return (
     <div className="card text-center py-3">
-      <div className="text-2xl mb-1">{icon}</div>
+      <div className="text-2xl mb-1 flex justify-center">{icon}</div>
       <div className={`text-xl font-bold font-mono ${color}`}>{count}</div>
       <div className="text-[10px] text-slate-500">{label}</div>
       <div className="text-[10px] text-slate-600 mt-0.5">{formatNumber(pts)} pts</div>

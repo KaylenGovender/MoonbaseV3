@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '../utils/format.js';
+import { Trophy, Skull, Swords, Shield, ChevronUp, ChevronDown } from 'lucide-react';
 
 const UNIT_LABELS = {
   MOONBUGGY: 'Moonbuggy',
@@ -88,10 +89,12 @@ export function ReportCard({ attack, baseId }) {
         className="w-full flex items-center justify-between px-3 py-3 text-left gap-2"
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-base">{won ? '🏆' : '💀'}</span>
+          <span className="text-base">{won ? <Trophy size={16} className="text-amber-400" /> : <Skull size={16} className="text-red-400" />}</span>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-white truncate max-w-[180px]">
-              {isOut ? `⚔️ You attacked ${opponentName}` : `🛡 ${opponentName} attacked you`}
+            <div className="text-xs font-semibold text-white truncate max-w-[180px] flex items-center gap-1">
+              {isOut
+                ? <><Swords size={14} className="text-red-400 flex-shrink-0" /> <span>You attacked {opponentName}</span></>
+                : <><Shield size={14} className="text-blue-400 flex-shrink-0" /> <span>{opponentName} attacked you</span></>}
             </div>
             <div className="text-xs text-slate-500">{timeAgo(attack.updatedAt ?? attack.createdAt)}</div>
           </div>
@@ -102,7 +105,7 @@ export function ReportCard({ attack, baseId }) {
           ) : (
             <span className="text-xs bg-red-800/60 text-red-300 px-2 py-0.5 rounded-full font-semibold">Defeat</span>
           )}
-          <span className="text-slate-500 text-xs">{open ? '▲' : '▼'}</span>
+          <span className="text-slate-500 text-xs">{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
         </div>
       </button>
 

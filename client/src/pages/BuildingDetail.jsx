@@ -10,6 +10,8 @@ import {
   radarRange as defaultRadarRange,
   constructionYardReduction as defaultCyReduction,
 } from '../utils/gameConstants.js';
+import BuildingIcon from '../components/BuildingIcon.jsx';
+import { FlaskConical, ArrowUp, Check } from 'lucide-react';
 
 const TYPE_UPPER_MAP = {
   silo: 'SILO', bunker: 'BUNKER', research_lab: 'RESEARCH_LAB',
@@ -21,7 +23,7 @@ function buildingLevelCost(type, level, gameConfig) {
   const bases = gameConfig?.buildingBases?.[type];
   if (!bases || level < 1 || level > 20) return null;
   const i = level - 1;
-  const m = Math.pow(1.2, i);
+  const m = Math.pow(1.4, i);
   return {
     oxygen:      Math.round(bases.oxygen  * m),
     water:       Math.round(bases.water   * m),
@@ -32,17 +34,17 @@ function buildingLevelCost(type, level, gameConfig) {
 }
 
 function getBuildingEffect(type, level, special) {
-  const siloBase     = special?.siloBase     ?? 1500;
-  const siloPerLevel = special?.siloPerLevel ?? 750;
+  const siloBase     = special?.siloBase     ?? 600;
+  const siloGrowth   = special?.siloGrowth   ?? 1.40;
   const bunkerMax    = special?.bunkerMaxPct ?? 40;
   const radarBase    = special?.radarBase    ?? 20;
   const radarPer     = special?.radarPerLevel ?? 5;
   switch (type) {
-    case 'SILO':              return `Storage: ${formatNumber(siloBase + level * siloPerLevel)} per resource`;
+    case 'SILO':              return `Storage: ${formatNumber(Math.round(siloBase * Math.pow(siloGrowth, level)))} per resource`;
     case 'BUNKER':            return `Protects ${Math.min(level * 2, bunkerMax)}% of resources from raiders`;
     case 'RADAR':             return `Visibility: ${radarBase + level * radarPer} km radius`;
     case 'CONSTRUCTION_YARD': return `Build time reduction: ${Math.min(level * 1.5, 30)}%`;
-    case 'RESEARCH_LAB':      return level >= 20 ? '✓ Extra base unlocked' : `${20 - level} more levels to unlock extra base`;
+    case 'RESEARCH_LAB':      return level >= 20 ? 'Extra base unlocked' : `${20 - level} more levels to unlock extra base`;
     case 'WAR_ROOM':          return `Reduces unit training time by ${Math.min(level * 3, 50)}% (enables training at L1)`;
     case 'ALLIANCE':          return `Max alliance size: ${level} members`;
     case 'TRADE_POD':         return `Send resources to your own bases & alliance members (range: ${level * 20}km)`;
@@ -57,7 +59,7 @@ export default function BuildingDetail() {
   const gameConfig        = useAuthStore((s) => s.gameConfig);
   const gameSpecial       = useAuthStore((s) => s.gameSpecial);
   const typeKey           = TYPE_UPPER_MAP[buildingType] ?? buildingType.toUpperCase();
-  const meta              = BUILDING_META[typeKey] ?? { icon: '🏢', label: typeKey };
+  const meta              = BUILDING_META[typeKey] ?? { label: typeKey };
 
   const [building, setBuilding]   = useState(null);
   const [buildings, setBuildings] = useState([]);
@@ -119,7 +121,7 @@ export default function BuildingDetail() {
     <div className="page">
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center gap-3">
         <button onClick={() => navigate('/base')} className="text-slate-400 text-xl">←</button>
-        <span className="text-xl">{meta.icon}</span>
+        <BuildingIcon type={typeKey} size={20} />
         <h1 className="text-sm font-semibold text-white">{meta.label}</h1>
       </div>
 
@@ -141,18 +143,18 @@ export default function BuildingDetail() {
               onClick={() => navigate('/base/research-lab')}
               className="mt-2 w-full text-sm font-semibold text-green-300 bg-green-900/40 border border-green-700/50 rounded-lg px-4 py-2 hover:bg-green-800/50 transition-colors"
             >
-              🔬 View Research Lab
+              <FlaskConical size={14} className="inline text-green-300" /> View Research Lab
             </button>
           )}
         </div>
 
         {isUpgrading ? (
           <div className="card border-yellow-600/50 text-center space-y-2">
-            <div className="text-yellow-400 text-sm font-medium">⬆ Upgrading to Level {currentLevel}</div>
+            <div className="text-yellow-400 text-sm font-medium flex items-center justify-center gap-1"><ArrowUp size={14} /> Upgrading to Level {currentLevel}</div>
             <div className="text-yellow-300 font-mono text-lg">{formatCountdown(building.upgradeEndsAt)}</div>
           </div>
         ) : isMaxLevel ? (
-          <div className="card text-center text-green-400 font-medium">✓ Maximum Level Reached</div>
+          <div className="card text-center text-green-400 font-medium flex items-center justify-center gap-1"><Check size={14} /> Maximum Level Reached</div>
         ) : cost && (
           <div className="card space-y-3">
             <div className="text-sm font-semibold text-white">Upgrade to Level {nextLevel}</div>

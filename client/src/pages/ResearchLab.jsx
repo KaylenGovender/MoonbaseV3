@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useBaseStore } from '../store/baseStore.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from '../components/UnitIcon.jsx';
+import { FlaskConical, ArrowUp, Check } from 'lucide-react';
 
 export default function ResearchLab() {
   const navigate     = useNavigate();
@@ -45,7 +46,7 @@ export default function ResearchLab() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center gap-3">
         <button onClick={() => navigate('/base')} className="text-slate-400 text-xl">←</button>
-        <span className="text-xl">🔬</span>
+        <FlaskConical size={20} className="text-violet-400" />
         <h1 className="text-sm font-semibold text-white">Research Lab</h1>
       </div>
 
@@ -57,7 +58,7 @@ export default function ResearchLab() {
             <span className="text-2xl font-bold text-white font-mono">{effectiveLevel}</span>
           </div>
           {isUpgrading && (
-            <div className="text-xs text-yellow-400">⬆ Upgrading to Level {currentLevel}…</div>
+            <div className="text-xs text-yellow-400 flex items-center gap-1"><ArrowUp size={12} /> Upgrading to Level {currentLevel}…</div>
           )}
           <div className="text-sm text-green-400 font-medium">
             +{effectiveLevel}% to all unit stats
@@ -102,7 +103,7 @@ export default function ResearchLab() {
         {!canClaimBase && effectiveLevel > 0 && bases.length < 2 && (
           <div className="card bg-green-950/20 border-green-800/30">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-green-400 font-semibold">🔬 Second Base Progress</span>
+              <span className="text-sm text-green-400 font-semibold flex items-center gap-1"><FlaskConical size={14} /> Second Base Progress</span>
               <span className="text-xs text-slate-400">Research Lab L{effectiveLevel}/20</span>
             </div>
             <div className="w-full bg-space-700 rounded-full h-2">
@@ -119,7 +120,7 @@ export default function ResearchLab() {
 
         {canClaimBase && (
           <div className="card bg-green-950/20 border-green-800/30 text-center space-y-2">
-            <div className="text-sm text-green-400 font-semibold">✓ Second base unlocked!</div>
+            <div className="text-sm text-green-400 font-semibold flex items-center justify-center gap-1"><Check size={14} /> Second base unlocked!</div>
             <button
               onClick={() => navigate('/map?claim=1')}
               className="btn-primary text-sm px-6"

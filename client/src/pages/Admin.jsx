@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
-import { BUILDING_META } from '../utils/gameConstants.js';
 import UnitIcon from '../components/UnitIcon.jsx';
+import BuildingIcon from '../components/BuildingIcon.jsx';
+import ResourceIcon from '../components/ResourceIcon.jsx';
+import { Home, Users, Handshake, Calendar, Monitor, Settings, Swords, Trophy, Shield, Crown, Star, Coins, ArrowUp, Trash2, Pencil, Hammer, Pickaxe, Wrench, AlertTriangle, Megaphone, ChevronUp, ChevronDown, Rocket, Clock, XCircle, RefreshCw, Package, Gift } from 'lucide-react';
 
 /** Format a UTC ISO string as a value suitable for <input type="datetime-local"> (browser-local time). */
 function toLocalInput(utcIso) {
@@ -19,9 +21,8 @@ function localToUTC(localStr) {
   return new Date(localStr).toISOString();
 }
 
-const BUILDING_ICONS = Object.fromEntries(Object.entries(BUILDING_META).map(([k, v]) => [k, v.icon]));
-const MINE_ICONS = { OXYGEN: '💨', WATER: '💧', IRON: '⚙️', HELIUM3: '☢️' };
-const RES_LABELS = { oxygen: '💨 O₂', water: '💧 H₂O', iron: '⚙️ Iron', helium3: '☢️ He3' };
+const RES_LABELS = { oxygen: 'O\u2082', water: 'H\u2082O', iron: 'Iron', helium3: 'He3' };
+const RES_TYPE_MAP = { oxygen: 'OXYGEN', water: 'WATER', iron: 'IRON', helium3: 'HELIUM3' };
 
 // Bottom-sheet style inline edit modal
 function EditModal({ label, value, numericOnly = true, onSave, onClose }) {
@@ -240,9 +241,9 @@ export default function Admin() {
         endDate:   localToUTC(newSeason.endDate),
       });
       setNewSeason({ name: '', startDate: '', endDate: '', activate: false });
-      setSeasonMsg('✅ Season created!');
+      setSeasonMsg('OK Season created!');
       loadSeasons();
-    } catch (e) { setSeasonMsg(`❌ ${e.message}`); }
+    } catch (e) { setSeasonMsg(`[Error] ${e.message}`); }
     finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n._create; return n; }); }
   }
 
@@ -258,7 +259,7 @@ export default function Admin() {
     setLoadingSeasonOps((prev) => ({ ...prev, [id]: 'ending' }));
     try {
       const res = await api.post(`/admin/season/${id}/end`, {});
-      setSeasonMsg(`✅ Season ended. Winner: ${res.winningAlliance ?? 'None'}`);
+      setSeasonMsg(`OK Season ended. Winner: ${res.winningAlliance ?? 'None'}`);
       loadSeasons();
     } catch (e) { setError(e.message); }
     finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[id]; return n; }); }
@@ -282,9 +283,9 @@ export default function Admin() {
         endDate:   localToUTC(editingSeason.endDate),
       });
       setEditingSeason(null);
-      setSeasonMsg('✅ Season updated!');
+      setSeasonMsg('OK Season updated!');
       loadSeasons();
-    } catch (e) { setSeasonMsg(`❌ ${e.message}`); }
+    } catch (e) { setSeasonMsg(`[Error] ${e.message}`); }
     finally { setLoadingSeasonOps((prev) => { const n = { ...prev }; delete n[editingSeason?.id]; return n; }); }
   }
 
@@ -311,15 +312,15 @@ export default function Admin() {
 
   async function resetPlayerPassword() {
     if (!selectedPlayer || !resetPwInput || resetPwInput.length < 6) {
-      setResetPwMsg('❌ Password must be at least 6 characters');
+      setResetPwMsg('[Error] Password must be at least 6 characters');
       return;
     }
     try {
       await api.post('/admin/reset-password', { userId: selectedPlayer.user.id, newPassword: resetPwInput });
-      setResetPwMsg('✅ Password reset successfully');
+      setResetPwMsg('OK Password reset successfully');
       setResetPwInput('');
       setTimeout(() => setResetPwMsg(''), 3000);
-    } catch (e) { setResetPwMsg(`❌ ${e.message}`); }
+    } catch (e) { setResetPwMsg(`[Error] ${e.message}`); }
   }
   useEffect(() => {
     if (tab === 'config') {
@@ -341,9 +342,9 @@ export default function Admin() {
       const payload = typeof value === 'object' ? { [key]: value } : { [key]: value };
       const updated = await api.put(`/admin/game-config/${section}`, payload);
       setGameConfig(updated.config);
-      setConfigMsg('✅ Saved');
+      setConfigMsg('OK Saved');
       setTimeout(() => setConfigMsg(''), 2000);
-    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+    } catch (e) { setConfigMsg(`[Error] ${e.message}`); }
   }
 
   async function saveUnitStat(unit, field, value) {
@@ -359,25 +360,25 @@ export default function Admin() {
       const updated = await api.put('/admin/game-config/unitStats', { [unit]: payload });
       setGameConfig(updated.config);
       loadGameConfig(); // refresh store so AttackModal gets new speeds immediately
-      setConfigMsg('✅ Saved');
+      setConfigMsg('OK Saved');
       setTimeout(() => setConfigMsg(''), 2000);
-    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+    } catch (e) { setConfigMsg(`[Error] ${e.message}`); }
   }
 
   async function toggleProtection() {
     try {
       const res = await api.put('/admin/config/protection', { enabled: !protectionEnabled });
       setProtectionEnabled(res.enabled);
-      setProtectionMsg(`✅ Protection ${res.enabled ? 'enabled' : 'disabled'}`);
+      setProtectionMsg(`OK Protection ${res.enabled ? 'enabled' : 'disabled'}`);
       setTimeout(() => setProtectionMsg(''), 3000);
-    } catch (e) { setProtectionMsg(`❌ ${e.message}`); }
+    } catch (e) { setProtectionMsg(`[Error] ${e.message}`); }
   }
 
   async function loadWeeks(seasonId) {
     try {
       const res = await api.get(`/admin/season/${seasonId}/weeks`);
       setWeekConfigs((prev) => ({ ...prev, [seasonId]: res.rows ?? [] }));
-    } catch (e) { setWeekMsg(`❌ ${e.message}`); }
+    } catch (e) { setWeekMsg(`[Error] ${e.message}`); }
   }
 
   async function saveWeek(weekId, seasonId, endDate) {
@@ -385,7 +386,7 @@ export default function Admin() {
       await api.put(`/admin/week-configs/${weekId}`, { endDate: localToUTC(endDate) });
       setEditingWeek(null);
       loadWeeks(seasonId);
-    } catch (e) { setWeekMsg(`❌ ${e.message}`); }
+    } catch (e) { setWeekMsg(`[Error] ${e.message}`); }
   }
 
   async function regenerateWeeks(seasonId) {
@@ -393,9 +394,9 @@ export default function Admin() {
     try {
       const res = await api.post(`/admin/seasons/${seasonId}/regenerate-weeks`, {});
       setWeekConfigs((prev) => ({ ...prev, [seasonId]: res.rows ?? [] }));
-      setWeekMsg('✅ Weeks regenerated!');
+      setWeekMsg('OK Weeks regenerated!');
       setTimeout(() => setWeekMsg(''), 3000);
-    } catch (e) { setWeekMsg(`❌ ${e.message}`); }
+    } catch (e) { setWeekMsg(`[Error] ${e.message}`); }
   }
 
   async function deleteWeek(weekId, seasonId) {
@@ -403,7 +404,7 @@ export default function Admin() {
     try {
       await api.delete(`/admin/week-configs/${weekId}`);
       loadWeeks(seasonId);
-    } catch (e) { setWeekMsg(`❌ ${e.message}`); }
+    } catch (e) { setWeekMsg(`[Error] ${e.message}`); }
   }
 
   async function doReset() {
@@ -412,9 +413,9 @@ export default function Admin() {
     setResetMsg('Resetting…');
     try {
       const res = await api.post('/admin/reset', { preserveUserIds: [...preserveIds] });
-      setResetMsg(`✅ Done — ${res.basesReset ?? 0} bases cleared.`);
+      setResetMsg(`OK Done — ${res.basesReset ?? 0} bases cleared.`);
       setResetConfirm(false);
-    } catch (e) { setResetMsg(`❌ ${e.message}`); }
+    } catch (e) { setResetMsg(`[Error] ${e.message}`); }
   }
 
   // ── Alliance management ──
@@ -422,30 +423,30 @@ export default function Admin() {
     if (!window.confirm('Disband this alliance? This cannot be undone.')) return;
     try {
       await api.delete(`/admin/alliances/${id}`);
-      setAllianceMsg('✅ Alliance disbanded');
+      setAllianceMsg('OK Alliance disbanded');
       loadAlliances();
       setTimeout(() => setAllianceMsg(''), 3000);
-    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+    } catch (e) { setAllianceMsg(`[Error] ${e.message}`); }
   }
 
   async function kickMember(allianceId, userId) {
     if (!window.confirm('Kick this member from the alliance?')) return;
     try {
       await api.delete(`/admin/alliances/${allianceId}/members/${userId}`);
-      setAllianceMsg('✅ Member kicked');
+      setAllianceMsg('OK Member kicked');
       loadAlliances();
       setTimeout(() => setAllianceMsg(''), 3000);
-    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+    } catch (e) { setAllianceMsg(`[Error] ${e.message}`); }
   }
 
   async function transferLeadership(allianceId, userId) {
     if (!window.confirm('Transfer leadership to this member?')) return;
     try {
       await api.put(`/admin/alliances/${allianceId}/leader`, { userId });
-      setAllianceMsg('✅ Leadership transferred');
+      setAllianceMsg('OK Leadership transferred');
       loadAlliances();
       setTimeout(() => setAllianceMsg(''), 3000);
-    } catch (e) { setAllianceMsg(`❌ ${e.message}`); }
+    } catch (e) { setAllianceMsg(`[Error] ${e.message}`); }
   }
 
   // ── Announcement ──
@@ -453,9 +454,9 @@ export default function Admin() {
     try {
       await api.put('/admin/announcement', { text: announcementDraft });
       setAnnouncement(announcementDraft);
-      setAnnouncementMsg('✅ Announcement updated');
+      setAnnouncementMsg('OK Announcement updated');
       setTimeout(() => setAnnouncementMsg(''), 3000);
-    } catch (e) { setAnnouncementMsg(`❌ ${e.message}`); }
+    } catch (e) { setAnnouncementMsg(`[Error] ${e.message}`); }
   }
 
   // ── Quick actions ──
@@ -490,10 +491,10 @@ export default function Admin() {
     try {
       const res = await api.post('/admin/game-config/reset', {});
       setGameConfig(res.config ?? res);
-      setConfigMsg('✅ Config reset to defaults');
+      setConfigMsg('OK Config reset to defaults');
       loadGameConfig();
       setTimeout(() => setConfigMsg(''), 3000);
-    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+    } catch (e) { setConfigMsg(`[Error] ${e.message}`); }
   }
 
   async function exportConfig() {
@@ -506,7 +507,7 @@ export default function Admin() {
       a.download = `game-config-${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+    } catch (e) { setConfigMsg(`[Error] ${e.message}`); }
   }
 
   async function importConfig(file) {
@@ -516,10 +517,10 @@ export default function Admin() {
       const json = JSON.parse(text);
       const res = await api.post('/admin/game-config/import', json);
       setGameConfig(res.config ?? res);
-      setConfigMsg('✅ Config imported successfully');
+      setConfigMsg('OK Config imported successfully');
       loadGameConfig();
       setTimeout(() => setConfigMsg(''), 3000);
-    } catch (e) { setConfigMsg(`❌ ${e.message}`); }
+    } catch (e) { setConfigMsg(`[Error] ${e.message}`); }
   }
 
   const switchTab = (t) => { setTab(t); setSelectedPlayer(null); setError(''); setSeasonMsg(''); setResetMsg(''); setResetConfirm(false); setAllianceMsg(''); setAnnouncementMsg(''); };
@@ -528,7 +529,7 @@ export default function Admin() {
     <div className="page">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-white">🛠 Admin Panel</h1>
+        <h1 className="text-sm font-semibold text-white flex items-center gap-1.5"><Wrench size={16} /> Admin Panel</h1>
         {selectedPlayer && tab === 'players' ? (
           <button onClick={() => setSelectedPlayer(null)} className="text-xs text-blue-400 hover:text-blue-300">← Players</button>
         ) : (
@@ -538,10 +539,10 @@ export default function Admin() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-space-600/50 overflow-x-auto px-2">
-        {[['dashboard','🏠'],['players','👥'],['alliances','🤝'],['seasons','📅'],['server','🖥️'],['config','⚙️']].map(([key,icon]) => (
+        {[['dashboard', Home],['players', Users],['alliances', Handshake],['seasons', Calendar],['server', Monitor],['config', Settings]].map(([key, Icon]) => (
           <button key={key} onClick={() => switchTab(key)}
-            className={`flex-none px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${tab === key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}>
-            {icon} {key.charAt(0).toUpperCase() + key.slice(1)}
+            className={`flex-none px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${tab === key ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500'}`}>
+            <Icon size={14} /> {key.charAt(0).toUpperCase() + key.slice(1)}
           </button>
         ))}
       </div>
@@ -549,7 +550,7 @@ export default function Admin() {
       {error && (
         <div className="mx-4 mt-3 bg-red-900/40 border border-red-700/50 text-red-300 text-xs rounded-lg px-4 py-2.5 flex items-center justify-between">
           {error}
-          <button onClick={() => setError('')} className="ml-2 text-red-400 text-base">✕</button>
+          <button onClick={() => setError('')} className="ml-2 text-red-400"><XCircle size={16} /></button>
         </div>
       )}
 
@@ -563,15 +564,15 @@ export default function Admin() {
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  ['👥', 'Total Players',       dashboardData.totalPlayers],
-                  ['🏠', 'Total Bases',          dashboardData.totalBases],
-                  ['⚔️', 'Active Attacks',       dashboardData.activeAttacks ?? activeAttacks.length],
-                  ['🏆', 'Recent Battles',       battleReports.length],
-                  ['🤝', 'Total Alliances',      dashboardData.totalAlliances],
-                  ['📝', 'Recent Registrations', dashboardData.recentRegistrations],
-                ].map(([icon, label, val]) => (
+                  [Users, 'Total Players',       dashboardData.totalPlayers],
+                  [Home, 'Total Bases',          dashboardData.totalBases],
+                  [Swords, 'Active Attacks',       dashboardData.activeAttacks ?? activeAttacks.length],
+                  [Trophy, 'Recent Battles',       battleReports.length],
+                  [Handshake, 'Total Alliances',      dashboardData.totalAlliances],
+                  [Clock, 'Recent Registrations', dashboardData.recentRegistrations],
+                ].map(([Icon, label, val]) => (
                   <div key={label} className="card flex items-center gap-3">
-                    <span className="text-2xl">{icon}</span>
+                    <span className="text-slate-400"><Icon size={24} /></span>
                     <div>
                       <div className="text-lg font-bold text-white">{val ?? 0}</div>
                       <div className="text-[10px] text-slate-500">{label}</div>
@@ -583,7 +584,7 @@ export default function Admin() {
               {/* Active season */}
               {dashboardData.activeSeason && (
                 <div className="card space-y-2">
-                  <p className="section-title">📅 Active Season</p>
+                  <p className="section-title flex items-center gap-1"><Calendar size={16} /> Active Season</p>
                   <div className="text-sm font-semibold text-white">{dashboardData.activeSeason.name}</div>
                   <div className="text-xs text-slate-400">
                     {new Date(dashboardData.activeSeason.startDate).toLocaleDateString()} → {new Date(dashboardData.activeSeason.endDate).toLocaleDateString()}
@@ -651,15 +652,15 @@ export default function Admin() {
                   <div className="flex gap-2">
                     <button onClick={() => toggleFlag('isAdmin', !selectedPlayer.user.isAdmin)}
                       className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selectedPlayer.user.isAdmin ? 'bg-yellow-900/50 text-yellow-300 border-yellow-700/40' : 'bg-space-700 text-slate-500 border-space-600/40'}`}>
-                      {selectedPlayer.user.isAdmin ? '⭐ Admin' : 'Grant Admin'}
+                      {selectedPlayer.user.isAdmin ? <><Star size={12} className="text-amber-400 inline" /> Admin</> : 'Grant Admin'}
                     </button>
                     <button onClick={() => toggleFlag('isBanned', !selectedPlayer.user.isBanned)}
                       className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${selectedPlayer.user.isBanned ? 'bg-red-900/50 text-red-300 border-red-700/40' : 'bg-space-700 text-slate-500 border-space-600/40'}`}>
-                      {selectedPlayer.user.isBanned ? '🚫 Banned' : 'Ban'}
+                      {selectedPlayer.user.isBanned ? <><XCircle size={12} className="inline" /> Banned</> : 'Ban'}
                     </button>
                     <button onClick={() => deletePlayer(selectedPlayer.user.id)}
-                      className="text-xs px-2.5 py-1 rounded-full border bg-red-950/50 text-red-400 border-red-800/50 hover:bg-red-900/50">
-                      🗑 Delete
+                      className="text-xs px-2.5 py-1 rounded-full border bg-red-950/50 text-red-400 border-red-800/50 hover:bg-red-900/50 flex items-center gap-1">
+                      <Trash2 size={12} /> Delete
                     </button>
                   </div>
                 </div>
@@ -670,26 +671,26 @@ export default function Admin() {
 
               {/* Quick Actions */}
               <div className="card space-y-2">
-                <p className="section-title">⚡ Quick Actions</p>
+                <p className="section-title flex items-center gap-1"><Rocket size={16} /> Quick Actions</p>
                 <div className="flex gap-2 flex-wrap">
                   <button onClick={giveStarterKit}
                     className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50 hover:bg-green-900/30">
-                    💰 Give Starter Kit
+                    <Gift size={14} className="inline" /> Give Starter Kit
                   </button>
                   <button onClick={maxAllBuildings}
                     className="btn-ghost text-xs py-1.5 px-3 text-blue-400 border-blue-800/50 hover:bg-blue-900/30">
-                    ⬆️ Max All Buildings
+                    <ArrowUp size={14} className="inline" /> Max All Buildings
                   </button>
                   <button onClick={resetBases}
                     className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
-                    🗑️ Reset Bases
+                    <Trash2 size={14} className="inline" /> Reset Bases
                   </button>
                 </div>
               </div>
 
               {/* Password Reset */}
               <div className="card space-y-2">
-                <p className="section-title">🔑 Reset Password</p>
+                <p className="section-title flex items-center gap-1"><Wrench size={16} /> Reset Password</p>
                 <div className="flex gap-2">
                   <input
                     className="input flex-1 text-xs"
@@ -700,19 +701,19 @@ export default function Admin() {
                   />
                   <button onClick={resetPlayerPassword} className="btn-primary text-xs px-3">Reset</button>
                 </div>
-                {resetPwMsg && <div className={`text-xs ${resetPwMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</div>}
+                {resetPwMsg && <div className={`text-xs ${resetPwMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</div>}
               </div>
 
               {/* Medals summary */}
               {selectedPlayer.medals.length > 0 && (
                 <div className="card">
-                  <p className="section-title mb-2">🏅 Medals</p>
+                  <p className="section-title mb-2 flex items-center gap-1"><Trophy size={14} /> Medals</p>
                   <div className="space-y-1">
                     {selectedPlayer.medals.map((m) => (
                       <div key={m.id} className="flex justify-between text-xs">
-                        <span className="text-slate-400">{m.season?.name ?? '?'} {m.weekNumber === 0 ? '🏆 Victory' : `Week ${m.weekNumber}`}</span>
+                        <span className="text-slate-400">{m.season?.name ?? '?'} {m.weekNumber === 0 ? <><Trophy size={12} className="inline" /> Victory</> : `Week ${m.weekNumber}`}</span>
                         <span className="text-slate-300 font-mono">
-                          {m.weekNumber === 0 ? '1 Victory Medal' : `⚔️${m.attackerPoints} 🛡️${m.defenderPoints} 💰${m.raiderPoints}`}
+                          {m.weekNumber === 0 ? '1 Victory Medal' : <><Swords size={12} className="inline" />{m.attackerPoints} <Shield size={12} className="inline" />{m.defenderPoints} <Coins size={12} className="inline" />{m.raiderPoints}</>}
                         </span>
                       </div>
                     ))}
@@ -732,7 +733,7 @@ export default function Admin() {
                         {base.season?.isActive && <span className="text-green-400 ml-1">● Active</span>}
                       </div>
                     </div>
-                    <span className="text-slate-500 text-sm">{expandedBase === base.id ? '▲' : '▼'}</span>
+                    <span className="text-slate-500">{expandedBase === base.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </button>
 
                   {expandedBase === base.id && (
@@ -741,14 +742,14 @@ export default function Admin() {
                       <div className="card">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] font-semibold text-slate-500 uppercase">Resources</p>
-                          <span className="text-[9px] text-slate-600">tap to edit ✏️</span>
+                          <span className="text-[9px] text-slate-600 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                           {['oxygen','water','iron','helium3'].map((f) => (
                             <button key={f} onClick={() => openEdit(`${RES_LABELS[f]} amount`, Math.floor(base.resourceState?.[f] ?? 0),
                                 (v) => api.put(`/admin/players/${selectedPlayer.user.id}/resources/${base.id}`, { [f]: parseFloat(v) }))}
                               className="flex items-center justify-between active:bg-space-700/40 rounded px-1 -mx-1">
-                              <span className="text-[11px] text-slate-400">{RES_LABELS[f]}</span>
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1"><ResourceIcon type={RES_TYPE_MAP[f]} size={14} /> {RES_LABELS[f]}</span>
                               <span className="text-[11px] text-blue-300 font-mono">{formatNumber(Math.floor(base.resourceState?.[f] ?? 0))}</span>
                             </button>
                           ))}
@@ -759,14 +760,14 @@ export default function Admin() {
                       <div className="card">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] font-semibold text-slate-500 uppercase">Buildings</p>
-                          <span className="text-[9px] text-slate-600">tap to edit ✏️</span>
+                          <span className="text-[9px] text-slate-600 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                           {base.buildings.map((b) => (
                             <button key={b.id} onClick={() => openEdit(`${b.type.replace(/_/g,' ')} level`, b.level,
                                 (v) => api.put(`/admin/buildings/${b.id}`, { level: parseInt(v) }))}
                               className="flex items-center justify-between active:bg-space-700/40 rounded px-1 -mx-1">
-                              <span className="text-[11px] text-slate-400">{BUILDING_ICONS[b.type] ?? '🏗️'} {b.type.replace(/_/g,' ')}</span>
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1"><BuildingIcon type={b.type} size={12} /> {b.type.replace(/_/g,' ')}</span>
                               <span className="text-[11px] text-blue-300 font-mono">L{b.level}</span>
                             </button>
                           ))}
@@ -777,14 +778,14 @@ export default function Admin() {
                       <div className="card">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] font-semibold text-slate-500 uppercase">Mines</p>
-                          <span className="text-[9px] text-slate-600">tap to edit ✏️</span>
+                          <span className="text-[9px] text-slate-600 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                           {base.mines.map((m) => (
                             <button key={m.id} onClick={() => openEdit(`${m.resourceType} Mine ${m.slot} level`, m.level,
                                 (v) => api.put(`/admin/mines/${m.id}`, { level: parseInt(v) }))}
                               className="flex items-center justify-between active:bg-space-700/40 rounded px-1 -mx-1">
-                              <span className="text-[11px] text-slate-400">{MINE_ICONS[m.resourceType] ?? '⛏️'} {m.resourceType} #{m.slot}</span>
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1"><ResourceIcon type={m.resourceType} size={14} /> {m.resourceType} #{m.slot}</span>
                               <span className="text-[11px] text-blue-300 font-mono">L{m.level}</span>
                             </button>
                           ))}
@@ -795,7 +796,7 @@ export default function Admin() {
                       <div className="card">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] font-semibold text-slate-500 uppercase">Units</p>
-                          <span className="text-[9px] text-slate-600">tap to edit ✏️</span>
+                          <span className="text-[9px] text-slate-600 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                           {base.unitStocks.map((u) => (
@@ -843,9 +844,9 @@ export default function Admin() {
               Activate immediately
             </label>
             <button onClick={createSeason} disabled={!!loadingSeasonOps._create} className="btn-primary w-full text-sm py-2.5">
-              {loadingSeasonOps._create ? '⏳ Creating…' : 'Create Season'}
+              {loadingSeasonOps._create ? 'Creating…' : 'Create Season'}
             </button>
-            {seasonMsg && <div className={`text-xs ${seasonMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{seasonMsg}</div>}
+            {seasonMsg && <div className={`text-xs ${seasonMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{seasonMsg}</div>}
           </div>
 
           {/* Seasons list */}
@@ -877,7 +878,7 @@ export default function Admin() {
                       </div>
                       <div className="flex gap-2">
                         <button onClick={saveSeasonEdit} disabled={!!loadingSeasonOps[s.id]} className="btn-primary flex-1 text-xs py-1.5">
-                          {loadingSeasonOps[s.id] === 'saving' ? '⏳ Saving…' : 'Save'}
+                          {loadingSeasonOps[s.id] === 'saving' ? 'Saving…' : 'Save'}
                         </button>
                         <button onClick={() => setEditingSeason(null)} className="btn-ghost flex-1 text-xs py-1.5">Cancel</button>
                       </div>
@@ -907,17 +908,17 @@ export default function Admin() {
                         </button>
                         {!s.isActive && (
                           <button onClick={() => activateSeason(s.id)} disabled={!!loadingSeasonOps[s.id]} className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50">
-                            {loadingSeasonOps[s.id] === 'activating' ? '⏳' : 'Activate'}
+                            {loadingSeasonOps[s.id] === 'activating' ? '…' : 'Activate'}
                           </button>
                         )}
                         {s.isActive && (
                           <button onClick={() => endSeason(s.id)} disabled={!!loadingSeasonOps[s.id]} className="btn-ghost text-xs py-1.5 px-3 text-yellow-400 border-yellow-800/50">
-                            {loadingSeasonOps[s.id] === 'ending' ? '⏳' : 'End Season'}
+                            {loadingSeasonOps[s.id] === 'ending' ? '…' : 'End Season'}
                           </button>
                         )}
                         <button onClick={() => deleteSeason(s.id)} disabled={!!loadingSeasonOps[s.id]}
                           className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
-                          {loadingSeasonOps[s.id] === 'deleting' ? '⏳ Deleting…' : '🗑 Delete'}
+                          {loadingSeasonOps[s.id] === 'deleting' ? 'Deleting…' : <><Trash2 size={12} className="inline" /> Delete</>}
                         </button>
                         <button
                           onClick={() => {
@@ -929,14 +930,14 @@ export default function Admin() {
                             if (!weekConfigs[s.id]) loadWeeks(s.id);
                           }}
                           className="btn-ghost text-xs py-1.5 px-3 text-purple-400 border-purple-800/50">
-                          📅 Weeks {expandedWeeks.has(s.id) ? '▲' : '▼'}
+                          <Calendar size={14} className="inline" /> Weeks {expandedWeeks.has(s.id) ? <ChevronUp size={14} className="inline" /> : <ChevronDown size={14} className="inline" />}
                         </button>
                       </div>
 
                       {/* Week configs */}
                       {expandedWeeks.has(s.id) && (
                         <div className="mt-3 border-t border-space-600/30 pt-3 space-y-1.5">
-                          {weekMsg && <div className={`text-xs ${weekMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{weekMsg}</div>}
+                          {weekMsg && <div className={`text-xs ${weekMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{weekMsg}</div>}
                           {(weekConfigs[s.id] ?? []).map((wc, wi) => (
                             <div key={wc.id} className={`rounded-lg px-3 py-2 ${wi % 2 === 0 ? 'bg-space-700/50' : 'bg-space-800/40'}`}>
                               {editingWeek?.id === wc.id ? (
@@ -948,8 +949,8 @@ export default function Admin() {
                                     value={editingWeek.endDate}
                                     onChange={(e) => setEditingWeek((w) => ({ ...w, endDate: e.target.value }))}
                                   />
-                                  <button onClick={() => saveWeek(wc.id, s.id, editingWeek.endDate)} className="btn-primary text-xs py-1 px-2">✓</button>
-                                  <button onClick={() => setEditingWeek(null)} className="btn-ghost text-xs py-1 px-2">✕</button>
+                                  <button onClick={() => saveWeek(wc.id, s.id, editingWeek.endDate)} className="btn-primary text-xs py-1 px-2">OK</button>
+                                  <button onClick={() => setEditingWeek(null)} className="btn-ghost text-xs py-1 px-2">x</button>
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-between">
@@ -966,8 +967,8 @@ export default function Admin() {
                                         seasonId: s.id,
                                         endDate: toLocalInput(wc.endDate),
                                       })}
-                                      className="text-blue-400 hover:text-blue-300 text-xs">✏️</button>
-                                    <button onClick={() => deleteWeek(wc.id, s.id)} className="text-red-500 hover:text-red-400 text-xs">✕</button>
+                                      className="text-blue-400 hover:text-blue-300 text-xs"><Pencil size={12} /></button>
+                                    <button onClick={() => deleteWeek(wc.id, s.id)} className="text-red-500 hover:text-red-400 text-xs">x</button>
                                   </div>
                                 </div>
                               )}
@@ -977,7 +978,7 @@ export default function Admin() {
                             <div className="text-xs text-slate-600 text-center py-2">No weeks — click Regenerate to create</div>
                           )}
                           <button onClick={() => regenerateWeeks(s.id)} className="btn-ghost text-xs py-1.5 w-full text-orange-400 border-orange-800/50 mt-1">
-                            🔄 Regenerate Weeks
+                            <RefreshCw size={14} className="inline" /> Regenerate Weeks
                           </button>
                         </div>
                       )}
@@ -994,7 +995,7 @@ export default function Admin() {
       {tab === 'alliances' && (
         <div className="px-4 py-4 space-y-4 pb-24">
           {allianceMsg && (
-            <div className={`text-xs text-center py-2 ${allianceMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{allianceMsg}</div>
+            <div className={`text-xs text-center py-2 ${allianceMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{allianceMsg}</div>
           )}
           {loadingAlliances ? (
             <div className="text-center py-10 text-slate-500 text-sm">Loading alliances…</div>
@@ -1012,7 +1013,7 @@ export default function Admin() {
                         Leader: {a.leader?.username ?? '?'} · {a.members?.length ?? 0} members
                       </div>
                     </div>
-                    <span className="text-slate-500 text-sm">{expandedAlliance === a.id ? '▲' : '▼'}</span>
+                    <span className="text-slate-500">{expandedAlliance === a.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </button>
 
                   {expandedAlliance === a.id && (
@@ -1027,19 +1028,19 @@ export default function Admin() {
                               <div>
                                 <span className="text-xs text-white">{m.user?.username ?? '?'}</span>
                                 {(m.userId === a.leaderId) && (
-                                  <span className="ml-1.5 text-[9px] text-yellow-400">👑 Leader</span>
+                                  <span className="ml-1.5 text-[9px] text-yellow-400 inline-flex items-center gap-0.5"><Crown size={12} className="text-amber-400" /> Leader</span>
                                 )}
                               </div>
                               <div className="flex gap-1.5">
                                 {m.userId !== a.leaderId && (
                                   <>
                                     <button onClick={() => transferLeadership(a.id, m.userId)}
-                                      className="text-[10px] px-2 py-0.5 rounded border bg-yellow-900/30 text-yellow-400 border-yellow-800/50 hover:bg-yellow-800/40">
-                                      👑 Lead
+                                      className="text-[10px] px-2 py-0.5 rounded border bg-yellow-900/30 text-yellow-400 border-yellow-800/50 hover:bg-yellow-800/40 flex items-center gap-0.5">
+                                      <Crown size={12} /> Lead
                                     </button>
                                     <button onClick={() => kickMember(a.id, m.userId)}
-                                      className="text-[10px] px-2 py-0.5 rounded border bg-red-900/30 text-red-400 border-red-800/50 hover:bg-red-800/40">
-                                      🗑 Kick
+                                      className="text-[10px] px-2 py-0.5 rounded border bg-red-900/30 text-red-400 border-red-800/50 hover:bg-red-800/40 flex items-center gap-0.5">
+                                      <Trash2 size={12} /> Kick
                                     </button>
                                   </>
                                 )}
@@ -1052,7 +1053,7 @@ export default function Admin() {
                       {/* Disband button */}
                       <button onClick={() => disbandAlliance(a.id)}
                         className="btn-danger w-full text-xs py-2 mt-2">
-                        🗑 Disband Alliance
+                        <Trash2 size={14} className="inline" /> Disband Alliance
                       </button>
                     </div>
                   )}
@@ -1068,7 +1069,7 @@ export default function Admin() {
         <div className="px-4 py-4 space-y-4">
           {/* Protection toggle */}
           <div className="card space-y-3">
-            <p className="section-title">🛡️ New Player Protection</p>
+            <p className="section-title flex items-center gap-1"><Shield size={16} /> New Player Protection</p>
             <p className="text-xs text-slate-400">When enabled, new players cannot be attacked for 24 hours after joining.</p>
             <div className="flex items-center justify-between">
               <span className={`text-sm font-semibold ${protectionEnabled ? 'text-green-400' : 'text-slate-400'}`}>
@@ -1084,12 +1085,12 @@ export default function Admin() {
                 {protectionEnabled ? 'Disable' : 'Enable'}
               </button>
             </div>
-            {protectionMsg && <div className={`text-xs ${protectionMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{protectionMsg}</div>}
+            {protectionMsg && <div className={`text-xs ${protectionMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{protectionMsg}</div>}
           </div>
 
           {/* Announcement banner */}
           <div className="card space-y-3">
-            <p className="section-title">📢 Announcement Banner</p>
+            <p className="section-title flex items-center gap-1"><Megaphone size={16} /> Announcement Banner</p>
             <p className="text-xs text-slate-400">Set a banner message visible to all players.</p>
             <input
               className="input w-full text-sm py-2.5"
@@ -1111,11 +1112,11 @@ export default function Admin() {
                 <button onClick={() => { setAnnouncementDraft(''); }} className="btn-ghost text-sm py-2.5 px-4">Clear</button>
               )}
             </div>
-            {announcementMsg && <div className={`text-xs ${announcementMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{announcementMsg}</div>}
+            {announcementMsg && <div className={`text-xs ${announcementMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{announcementMsg}</div>}
           </div>
 
           <div className="card bg-red-950/20 border-red-800/30 space-y-3">
-            <p className="section-title text-red-400">⚠️ Reset Gameplay</p>
+            <p className="section-title text-red-400 flex items-center gap-1"><AlertTriangle size={16} className="text-red-400" /> Reset Gameplay</p>
             <p className="text-xs text-slate-400">
               Deletes all bases, units, resources, and medals for non-selected players.
               Admin accounts are always preserved. Tick players below to keep their data:
@@ -1149,7 +1150,7 @@ export default function Admin() {
             {!resetConfirm ? (
               <button onClick={() => setResetConfirm(true)}
                 className="btn-danger w-full text-sm py-2.5">
-                🔄 Reset Gameplay
+                <RefreshCw size={14} className="inline" /> Reset Gameplay
               </button>
             ) : (
               <div className="space-y-2">
@@ -1162,12 +1163,12 @@ export default function Admin() {
                 </div>
               </div>
             )}
-            {resetMsg && <div className={`text-xs text-center ${resetMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetMsg}</div>}
+            {resetMsg && <div className={`text-xs text-center ${resetMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{resetMsg}</div>}
           </div>
 
           {/* Battle reports with filter */}
           <div className="card space-y-3">
-            <p className="section-title">🏆 Battle Reports</p>
+            <p className="section-title flex items-center gap-1"><Trophy size={16} /> Battle Reports</p>
             <div className="flex gap-2">
               <input
                 className="input flex-1 text-xs"
@@ -1215,32 +1216,36 @@ export default function Admin() {
       {tab === 'config' && (
         <div className="px-4 py-4 space-y-3 pb-24">
           {configMsg && (
-            <div className={`text-xs text-center py-2 ${configMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{configMsg}</div>
+            <div className={`text-xs text-center py-2 ${configMsg.startsWith('OK') ? 'text-green-400' : 'text-red-400'}`}>{configMsg}</div>
           )}
 
           {/* Sub-section tabs */}
           <div className="flex gap-1 overflow-x-auto pb-1">
-            {[['buildings','🏗 Buildings'],['mines','⛏ Mines'],['units','⚔️ Units'],['special','🔧 Special']].map(([key,label]) => (
-              <button key={key} onClick={() => setConfigSection(key)}
-                className={`px-3 py-1.5 text-xs rounded-lg whitespace-nowrap border transition-colors ${configSection === key ? 'bg-blue-900/50 text-blue-300 border-blue-700/50' : 'bg-space-700/50 text-slate-400 border-space-600/40'}`}>
-                {label}
-              </button>
-            ))}
+            {['buildings','mines','units','special'].map((key) => {
+              const cfgIcons = { buildings: <Hammer size={14} />, mines: <Pickaxe size={14} />, units: <Swords size={14} />, special: <Wrench size={14} /> };
+              const cfgLabels = { buildings: 'Buildings', mines: 'Mines', units: 'Units', special: 'Special' };
+              return (
+                <button key={key} onClick={() => setConfigSection(key)}
+                  className={`px-3 py-1.5 text-xs rounded-lg whitespace-nowrap border transition-colors flex items-center gap-1 ${configSection === key ? 'bg-blue-900/50 text-blue-300 border-blue-700/50' : 'bg-space-700/50 text-slate-400 border-space-600/40'}`}>
+                  {cfgIcons[key]} {cfgLabels[key]}
+                </button>
+              );
+            })}
           </div>
 
           {/* Config actions */}
           <div className="flex gap-2 flex-wrap">
             <button onClick={exportConfig}
               className="btn-ghost text-xs py-1.5 px-3 text-green-400 border-green-800/50 hover:bg-green-900/30">
-              📥 Export Config
+              <Package size={14} className="inline" /> Export Config
             </button>
             <label className="btn-ghost text-xs py-1.5 px-3 text-blue-400 border-blue-800/50 hover:bg-blue-900/30 cursor-pointer">
-              📤 Import Config
+              <ArrowUp size={14} className="inline" /> Import Config
               <input type="file" accept=".json" className="hidden" onChange={(e) => { importConfig(e.target.files[0]); e.target.value = ''; }} />
             </label>
             <button onClick={resetConfigToDefaults}
               className="btn-ghost text-xs py-1.5 px-3 text-red-400 border-red-800/50 hover:bg-red-900/30">
-              ⚠️ Reset to Defaults
+              <AlertTriangle size={14} className="text-red-400 inline" /> Reset to Defaults
             </button>
           </div>
 
@@ -1255,7 +1260,7 @@ export default function Admin() {
                   {Object.entries(gameConfig.buildingBases ?? {}).map(([type, b]) => (
                     <div key={type} className="card space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-white">{BUILDING_ICONS[type] ?? '🏗️'} {type.replace(/_/g,' ')}</p>
+                        <p className="text-xs font-semibold text-white flex items-center gap-1"><BuildingIcon type={type} size={14} /> {type.replace(/_/g,' ')}</p>
                         <span className="text-[9px] text-slate-500">tap value to edit</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -1281,7 +1286,7 @@ export default function Admin() {
                   {Object.entries(gameConfig.mineBases ?? {}).map(([type, b]) => (
                     <div key={type} className="card space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-white">{MINE_ICONS[type] ?? '⛏️'} {type} Mine</p>
+                        <p className="text-xs font-semibold text-white flex items-center gap-1"><ResourceIcon type={type} size={14} /> {type} Mine</p>
                         <span className="text-[9px] text-slate-500">tap value to edit</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -1299,8 +1304,8 @@ export default function Admin() {
                   ))}
                   <div className="card space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-white">📈 Production Rate per Level (units/min)</p>
-                      <span className="text-[9px] text-slate-500">tap to edit</span>
+                      <p className="text-xs font-semibold text-white flex items-center gap-1"><ArrowUp size={14} /> Production Rate per Level (units/min)</p>
+                      <span className="text-[9px] text-slate-500 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {Object.entries(gameConfig.mineRatePerLevel ?? {}).map(([type, rate]) => (
@@ -1324,7 +1329,7 @@ export default function Admin() {
                     <div key={unit} className="card space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-white flex items-center gap-1"><UnitIcon type={unit} size={16} /> {unit}</p>
-                        <span className="text-[9px] text-slate-500">tap value to edit ✏️</span>
+                        <span className="text-[9px] text-slate-500 flex items-center gap-0.5">tap value to edit <Pencil size={10} /></span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">
                         {['attack','defense','carryCapacity','speed','buildTime'].map((f) => (
@@ -1362,8 +1367,8 @@ export default function Admin() {
               {configSection === 'special' && (
                 <div className="card space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-white mb-3">🔧 Special Values</p>
-                    <span className="text-[9px] text-slate-500">tap to edit ✏️</span>
+                    <p className="text-xs font-semibold text-white mb-3 flex items-center gap-1"><Wrench size={14} /> Special Values</p>
+                    <span className="text-[9px] text-slate-500 flex items-center gap-0.5">tap to edit <Pencil size={10} /></span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(gameConfig.special ?? {}).map(([key, val]) => (

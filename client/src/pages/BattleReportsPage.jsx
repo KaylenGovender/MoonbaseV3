@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBaseStore } from '../store/baseStore.js';
 import { ReportCard } from '../components/BattleReports.jsx';
 import { useAuthStore } from '../store/authStore.js';
+import { ArrowLeft } from 'lucide-react';
 
 export default function BattleReportsPage() {
   const navigate = useNavigate();
@@ -16,8 +17,8 @@ export default function BattleReportsPage() {
   return (
     <div className="page">
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/base')} className="text-slate-400 hover:text-white text-sm">
-          ← Back
+        <button onClick={() => navigate('/base')} className="text-slate-400 hover:text-white text-sm flex items-center gap-1">
+          <ArrowLeft size={14} /> Back
         </button>
         <h1 className="text-sm font-semibold text-white">Battle Reports (Last 24h)</h1>
       </div>

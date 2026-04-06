@@ -3,15 +3,17 @@ import { formatCountdown, formatEta } from '../utils/format.js';
 import { BUILDING_META, UNIT_META } from '../utils/gameConstants.js';
 import { useAuthStore } from '../store/authStore.js';
 import UnitIcon from './UnitIcon.jsx';
+import BuildingIcon from './BuildingIcon.jsx';
+import { Swords, Hammer, Pickaxe, Wrench, AlertTriangle, ChevronUp, ChevronDown, ArrowDownLeft, Package } from 'lucide-react';
 
 const CATEGORIES = [
-  { key: 'incomingAttacks',    label: 'Incoming Attacks',   icon: '🚨', color: 'text-red-400',    bg: 'bg-red-900/20 border-red-800/40' },
-  { key: 'outgoingAttacks',    label: 'Outgoing Attacks',   icon: '⚔️', color: 'text-green-400',  bg: 'bg-green-900/20 border-green-800/40' },
-  { key: 'upgradingBuildings', label: 'Building Upgrades',  icon: '🏗️', color: 'text-purple-400', bg: 'bg-purple-900/20 border-purple-800/40' },
-  { key: 'upgradingMines',     label: 'Mine Upgrades',      icon: '⛏️', color: 'text-yellow-400', bg: 'bg-yellow-900/20 border-yellow-800/40' },
-  { key: 'buildQueues',        label: 'Unit Build Queue',   icon: '🔧', color: 'text-blue-400',   bg: 'bg-blue-900/20 border-blue-800/40' },
-  { key: 'tradePodsOut',       label: 'Trade Pods',         icon: '📦', color: 'text-purple-400', bg: 'bg-purple-900/20 border-purple-800/40' },
-  { key: 'tradePodsIn',        label: 'Incoming Resources', icon: '📥', color: 'text-teal-400',   bg: 'bg-teal-900/20 border-teal-800/40' },
+  { key: 'incomingAttacks',    label: 'Incoming Attacks',   Icon: AlertTriangle, color: 'text-red-400',    bg: 'bg-red-900/20 border-red-800/40' },
+  { key: 'outgoingAttacks',    label: 'Outgoing Attacks',   Icon: Swords,        color: 'text-green-400',  bg: 'bg-green-900/20 border-green-800/40' },
+  { key: 'upgradingBuildings', label: 'Building Upgrades',  Icon: Hammer,        color: 'text-purple-400', bg: 'bg-purple-900/20 border-purple-800/40' },
+  { key: 'upgradingMines',     label: 'Mine Upgrades',      Icon: Pickaxe,       color: 'text-yellow-400', bg: 'bg-yellow-900/20 border-yellow-800/40' },
+  { key: 'buildQueues',        label: 'Unit Build Queue',   Icon: Wrench,        color: 'text-blue-400',   bg: 'bg-blue-900/20 border-blue-800/40' },
+  { key: 'tradePodsOut',       label: 'Trade Pods',         Icon: Package,       color: 'text-purple-400', bg: 'bg-purple-900/20 border-purple-800/40' },
+  { key: 'tradePodsIn',        label: 'Incoming Resources', Icon: ArrowDownLeft, color: 'text-teal-400',   bg: 'bg-teal-900/20 border-teal-800/40' },
 ];
 
 export default function ActiveEvents({ base }) {
@@ -63,7 +65,7 @@ export default function ActiveEvents({ base }) {
     incomingAttacks: incomingAttacks.map((attack) => (
       <EventRow
         key={attack.id}
-        icon="🚨"
+        icon={<AlertTriangle size={14} className="text-red-400" />}
         color="text-red-400"
         bg="bg-red-900/20 border-red-800/40"
         label={`Incoming attack from ${attack.attackerBase?.name ?? 'Unknown'}`}
@@ -78,7 +80,7 @@ export default function ActiveEvents({ base }) {
       return (
         <EventRow
           key={attack.id}
-          icon={attack.status === 'RETURNING' ? '↩️' : '⚔️'}
+          icon={attack.status === 'RETURNING' ? <ArrowDownLeft size={14} /> : <Swords size={14} />}
           color="text-green-400"
           bg="bg-green-900/20 border-green-800/40"
           label={
@@ -96,7 +98,7 @@ export default function ActiveEvents({ base }) {
       return (
         <EventRow
           key={b.id}
-          icon={bMeta?.icon ?? '🏗️'}
+          icon={<BuildingIcon type={b.type} size={14} />}
           color="text-purple-400"
           bg="bg-purple-900/20 border-purple-800/40"
           label={`${bMeta?.label ?? formatBuildingName(b.type)} upgrading → L${b.level}`}
@@ -107,7 +109,7 @@ export default function ActiveEvents({ base }) {
     upgradingMines: upgradingMines.map((m) => (
       <EventRow
         key={m.id}
-        icon="⛏️"
+        icon={<Pickaxe size={14} />}
         color="text-yellow-400"
         bg="bg-yellow-900/20 border-yellow-800/40"
         label={`${RESOURCE_NAMES[m.resourceType] ?? m.resourceType} Mine #${m.slot} upgrading → L${m.level}`}
@@ -132,7 +134,7 @@ export default function ActiveEvents({ base }) {
     tradePodsOut: tradePodsOut.map((pod) => (
       <EventRow
         key={pod.id}
-        icon="📦"
+        icon={<Package size={14} />}
         color="text-purple-400"
         bg="bg-purple-900/20 border-purple-800/40"
         label={`Trade pod → ${pod.toBase?.name ?? 'Unknown'}`}
@@ -142,7 +144,7 @@ export default function ActiveEvents({ base }) {
     tradePodsIn: tradePodsIn.map((pod) => (
       <EventRow
         key={pod.id}
-        icon="📥"
+        icon={<ArrowDownLeft size={14} />}
         color="text-teal-400"
         bg="bg-teal-900/20 border-teal-800/40"
         label={`Incoming resources from ${pod.fromBase?.name ?? 'Unknown'}`}
@@ -168,11 +170,11 @@ export default function ActiveEvents({ base }) {
               className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-space-700/50 border border-space-600/30"
             >
               <div className="flex items-center gap-2">
-                <span>{cat.icon}</span>
+                <span><cat.Icon size={14} className={cat.color} /></span>
                 <span className="text-xs text-slate-300">{cat.label}</span>
                 <span className="text-[10px] bg-space-600 text-slate-400 px-1.5 rounded-full">{items.length}</span>
               </div>
-              <span className="text-slate-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
+              <span className="text-slate-500 text-xs">{isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
             </button>
             {isExpanded && (
               <div className="mt-1 space-y-1">

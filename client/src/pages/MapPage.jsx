@@ -8,6 +8,7 @@ import CanvasMap from '../components/CanvasMap.jsx';
 import AttackModal from '../components/AttackModal.jsx';
 import { radarRange, UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from '../components/UnitIcon.jsx';
+import { Compass, Satellite, Hammer, Handshake, Shield, AlertTriangle, MapPin, Target, Moon, CheckCircle, ArrowUp } from 'lucide-react';
 
 function useProtectionCountdown(protectedUntil) {
   const [ms, setMs] = useState(() => protectedUntil ? new Date(protectedUntil) - Date.now() : 0);
@@ -142,10 +143,10 @@ export default function MapPage() {
     <div className="flex flex-col h-full overflow-hidden" style={{ background: '#050f1e' }}>
       {/* Header */}
       <div className="bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-2 flex items-center justify-between flex-shrink-0">
-        <h1 className="text-sm font-semibold text-white">🧭 Lunar Map</h1>
+        <h1 className="text-sm font-semibold text-white flex items-center gap-1"><Compass size={14} /> Lunar Map</h1>
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-400">
-            📡 Radar L{radarLevel} · <span className="text-sky-400">{radarKm}km</span>
+          <span className="text-slate-400 flex items-center gap-1">
+            <Satellite size={12} /> Radar L{radarLevel} · <span className="text-sky-400">{radarKm}km</span>
           </span>
           <span className="flex items-center gap-1 text-slate-500">
             <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> Own
@@ -186,7 +187,7 @@ export default function MapPage() {
         <div className="bg-space-800 border-t border-space-600/50 px-4 py-3 pb-24 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sky-400 font-medium text-sm">🏗️ {selectedBase.name}</div>
+              <div className="text-sky-400 font-medium text-sm flex items-center gap-1"><Hammer size={14} /> {selectedBase.name}</div>
               <div className="text-xs text-slate-400">Your base</div>
             </div>
             <div className="flex items-center gap-2">
@@ -196,7 +197,7 @@ export default function MapPage() {
               >
                 View Base →
               </button>
-              <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">✕</button>
+              <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">×</button>
             </div>
           </div>
         </div>
@@ -207,10 +208,10 @@ export default function MapPage() {
         <div className="bg-space-800 border-t border-green-700/30 px-4 py-3 pb-24 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-green-400 font-medium text-sm">🤝 {selectedBase.name}</div>
+              <div className="text-green-400 font-medium text-sm flex items-center gap-1"><Handshake size={14} /> {selectedBase.name}</div>
               <div className="text-xs text-slate-400">Ally · Commander {selectedBase.username}</div>
             </div>
-            <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">✕</button>
+            <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">×</button>
           </div>
           {reinfSuccess ? (
             <div className="text-green-400 text-sm py-2 text-center">{reinfSuccess}</div>
@@ -238,7 +239,7 @@ export default function MapPage() {
                 disabled={reinfLoading}
                 className="btn-primary w-full text-sm"
               >
-                {reinfLoading ? 'Sending…' : '🛡 Send Reinforcements'}
+                {reinfLoading ? 'Sending…' : <><Shield size={14} className="inline" /> Send Reinforcements</>}
               </button>
             </>
           )}
@@ -250,24 +251,24 @@ export default function MapPage() {
         <div className="bg-space-800 border-t border-space-600/50 px-4 py-3 pb-24 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <div className="text-red-400 font-medium text-sm">⚠️ {selectedBase.name}</div>
+              <div className="text-red-400 font-medium text-sm flex items-center gap-1"><AlertTriangle size={14} /> {selectedBase.name}</div>
               <div className="text-xs text-slate-400">Commander {selectedBase.username}</div>
               {playerBase && (
-                <div className="text-xs text-slate-500">
-                  📍 {Math.sqrt((selectedBase.x - playerBase.x) ** 2 + (selectedBase.y - playerBase.y) ** 2).toFixed(1)} km away
+                <div className="text-xs text-slate-500 flex items-center gap-1">
+                  <MapPin size={12} /> {Math.sqrt((selectedBase.x - playerBase.x) ** 2 + (selectedBase.y - playerBase.y) ** 2).toFixed(1)} km away
                 </div>
               )}
               {selectedBase.isProtected && selectedBase.protectedUntil && (
-                <div className="text-yellow-400 text-xs mt-0.5">
-                  🛡️ New player — protected until {new Date(selectedBase.protectedUntil).toLocaleString()}
+                <div className="text-yellow-400 text-xs mt-0.5 flex items-center gap-1">
+                  <Shield size={12} /> New player — protected until {new Date(selectedBase.protectedUntil).toLocaleString()}
                 </div>
               )}
             </div>
-            <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">✕</button>
+            <button onClick={() => setSelectedBase(null)} className="text-slate-500 text-lg px-2">×</button>
           </div>
           {!selectedBase.isProtected && (
             <div className="flex gap-2">
-              <button onClick={() => setShowAttack(true)} className="btn-danger flex-1 text-sm">⚔️ Attack</button>
+              <button onClick={() => setShowAttack(true)} className="btn-danger flex-1 text-sm flex items-center justify-center gap-1"><Target size={14} /> Attack</button>
             </div>
           )}
         </div>
@@ -276,8 +277,8 @@ export default function MapPage() {
       {/* Claim mode — top banner */}
       {claimMode && (
         <div className="absolute top-12 left-0 right-0 flex justify-center z-20 pointer-events-none">
-          <div className="bg-yellow-900/90 border border-yellow-600/50 text-yellow-200 text-xs px-4 py-2 rounded-full">
-            🌕 Tap a numbered plot to place your new base
+          <div className="bg-yellow-900/90 border border-yellow-600/50 text-yellow-200 text-xs px-4 py-2 rounded-full flex items-center gap-1">
+            <Moon size={14} /> Tap a numbered plot to place your new base
           </div>
         </div>
       )}
@@ -287,8 +288,8 @@ export default function MapPage() {
         <div className="bg-space-800 border-t border-yellow-700/40 px-4 py-3 pb-24 flex-shrink-0">
           {selectedPlot ? (
             <>
-              <div className="text-yellow-300 text-sm font-medium mb-1">
-                📍 Plot #{availablePlots.indexOf(selectedPlot) + 1} — ({selectedPlot.x.toFixed(1)}km, {selectedPlot.y.toFixed(1)}km)
+              <div className="text-yellow-300 text-sm font-medium mb-1 flex items-center gap-1">
+                <MapPin size={14} /> Plot #{availablePlots.indexOf(selectedPlot) + 1} — ({selectedPlot.x.toFixed(1)}km, {selectedPlot.y.toFixed(1)}km)
               </div>
               {playerBase && (
                 <div className="text-xs text-slate-400 mb-2">
@@ -298,7 +299,7 @@ export default function MapPage() {
               {claimError && <p className="text-red-400 text-xs mb-2">{claimError}</p>}
               <div className="flex gap-2">
                 <button onClick={confirmClaim} disabled={claimLoading} className="btn-primary flex-1 text-sm">
-                  {claimLoading ? 'Claiming…' : '✅ Confirm Location'}
+                  {claimLoading ? 'Claiming…' : <><CheckCircle size={14} className="inline" /> Confirm Location</>}
                 </button>
                 <button onClick={() => setSelectedPlot(null)} className="btn-ghost text-sm px-4">Change</button>
                 <button onClick={() => navigate(-1)} className="btn-ghost text-sm px-3 text-slate-500">Cancel</button>

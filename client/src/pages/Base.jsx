@@ -10,7 +10,7 @@ import ActiveEvents from '../components/ActiveEvents.jsx';
 import BattleReports from '../components/BattleReports.jsx';
 import ClaimBaseModal from '../components/ClaimBaseModal.jsx';
 import TransferModal from '../components/TransferModal.jsx';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Moon, Rocket, Settings, Menu } from 'lucide-react';
 import { APP_VERSION } from '../utils/gameConstants.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
@@ -30,8 +30,12 @@ export default function Base() {
 
   // Use live config for silo capacity, fallback to hardcoded
   const siloCapacity = (level) => {
-    if (gameSpecial) return (gameSpecial.siloBase ?? 1500) + level * (gameSpecial.siloPerLevel ?? 750);
-    return defaultSiloCapacity(level);
+    if (gameSpecial) {
+      const base   = gameSpecial.siloBase   ?? 600;
+      const growth = gameSpecial.siloGrowth ?? 1.40;
+      return Math.round(base * Math.pow(growth, level));
+    }
+    return defaultSiloCapacity(level, gameSpecial);
   };
   const [myRank,       setMyRank]       = useState(null);
   const [showBases,    setShowBases]    = useState(false);
@@ -95,23 +99,23 @@ export default function Base() {
         resources?.iron    > 0 ? `Fe ${formatNumber(resources.iron)}`     : null,
         resources?.helium3 > 0 ? `He3 ${formatNumber(resources.helium3)}` : null,
       ].filter(Boolean);
-      addToast(`📦 Resources received: ${parts.join(' · ')}`, 'success');
+      addToast(`Resources received: ${parts.join(' · ')}`, 'success');
       load();
     });
 
     socket.on('reinforcement:arrived', ({ units }) => {
       const parts = units
-        ? Object.entries(units).filter(([, n]) => n > 0).map(([t, n]) => `${UNIT_META[t]?.icon ?? t} ${n}`)
+        ? Object.entries(units).filter(([, n]) => n > 0).map(([t, n]) => `${UNIT_META[t]?.label ?? t} ${n}`)
         : [];
-      addToast(`🛡 Reinforcements arrived: ${parts.join(' ')}`, 'success');
+      addToast(`Reinforcements arrived: ${parts.join(' ')}`, 'success');
       load();
     });
 
     socket.on('reinforcement:returned', ({ units }) => {
       const parts = units
-        ? Object.entries(units).filter(([, n]) => n > 0).map(([t, n]) => `${UNIT_META[t]?.icon ?? t} ${n}`)
+        ? Object.entries(units).filter(([, n]) => n > 0).map(([t, n]) => `${UNIT_META[t]?.label ?? t} ${n}`)
         : [];
-      addToast(`🔄 Units returned: ${parts.join(' ')}`, 'info');
+      addToast(`Units returned: ${parts.join(' ')}`, 'info');
       load();
     });
 
@@ -132,13 +136,13 @@ export default function Base() {
     return (
       <div className="page">
         <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center justify-between">
-          <h1 className="text-sm font-semibold text-white">🌙 Lunara</h1>
+          <h1 className="text-sm font-semibold text-white flex items-center gap-1"><Moon size={16} className="text-slate-300" /> Lunara</h1>
           <button onClick={logout} className="text-xs text-slate-400 hover:text-white">Logout</button>
         </div>
         <div className="flex flex-col items-center justify-center px-6 py-16 text-center space-y-6">
           {currentSeason ? (
             <>
-              <div className="text-5xl">🚀</div>
+              <Rocket size={48} className="text-amber-400" />
               <div>
                 <div className="text-xl font-bold text-white mb-2">{currentSeason.name} is Active!</div>
                 <div className="text-sm text-slate-400">Setting up your lunar base…</div>
@@ -147,12 +151,12 @@ export default function Base() {
                 onClick={async () => { await refreshBases(); }}
                 className="btn-primary px-8 py-3 text-base font-semibold"
               >
-                Retry / Create Base 🌕
+                Retry / Create Base
               </button>
             </>
           ) : (
             <>
-              <div className="text-5xl">🌑</div>
+              <Moon size={48} className="text-slate-600" />
               <div>
                 <div className="text-xl font-bold text-white mb-2">No Active Season</div>
                 <div className="text-sm text-slate-400">Season starts soon — checking automatically…</div>
@@ -235,15 +239,8 @@ export default function Base() {
               + New Base
             </button>
           )}
-          <button
-            onClick={load}
-            className="text-slate-400 hover:text-white transition-colors text-lg"
-            title="Refresh"
-          >
-            🔄
-          </button>
           <button onClick={() => setShowMenu(v => !v)} className="text-slate-400 hover:text-white transition-colors text-xl" title="Menu">
-            ☰
+            <Menu size={20} />
           </button>
         </div>
       </div>
@@ -264,7 +261,7 @@ export default function Base() {
                   onClick={() => { setShowMenu(false); navigate('/admin'); }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-200 hover:bg-space-700/50 transition-colors text-left"
                 >
-                  <span>⚙️</span> Admin Panel
+                  <Settings size={16} /> Admin Panel
                 </button>
                 <div className="border-b border-space-600/40" />
               </>

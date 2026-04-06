@@ -2,8 +2,10 @@
 
 export const APP_VERSION = 'v4.0.0';
 
-export function siloCapacity(level) {
-  return 1500 + level * 750;
+export function siloCapacity(level, gameSpecial) {
+  const base   = gameSpecial?.siloBase   ?? 600;
+  const growth = gameSpecial?.siloGrowth ?? 1.40;
+  return Math.round(base * Math.pow(growth, level));
 }
 
 // Max 40% protection at level 20
@@ -34,14 +36,14 @@ export function mineRate(resourceType, level) {
 }
 
 export const BUILDING_META = {
-  SILO:              { icon: '🛢️', label: 'Silo',              desc: 'Increases resource storage',        maxLevel: 20 },
-  BUNKER:            { icon: '🛡️', label: 'Bunker',            desc: 'Protects resources from raids',     maxLevel: 20 },
-  RESEARCH_LAB:      { icon: '🔬', label: 'Research Lab',      desc: 'Unlocks extra base at level 20',    maxLevel: 20 },
-  RADAR:             { icon: '📡', label: 'Radar',             desc: 'Increases map visibility range',    maxLevel: 20 },
-  WAR_ROOM:          { icon: '⚔️', label: 'War Room',          desc: 'Train military units',              maxLevel: 20 },
-  CONSTRUCTION_YARD: { icon: '🔧', label: 'Construction Yard', desc: 'Reduces build times (-1.5%/level)', maxLevel: 20 },
-  ALLIANCE:          { icon: '🤝', label: 'Alliance',          desc: 'Determines max alliance size',      maxLevel: 20 },
-  TRADE_POD:         { icon: '📦', label: 'Trade Pod',         desc: 'Send resources to allies',          maxLevel: 20 },
+  SILO:              { icon: 'SILO',              label: 'Silo',              desc: 'Increases resource storage',        maxLevel: 20 },
+  BUNKER:            { icon: 'BUNKER',            label: 'Bunker',            desc: 'Protects resources from raids',     maxLevel: 20 },
+  RESEARCH_LAB:      { icon: 'RESEARCH_LAB',      label: 'Research Lab',      desc: 'Unlocks extra base at level 20',    maxLevel: 20 },
+  RADAR:             { icon: 'RADAR',             label: 'Radar',             desc: 'Increases map visibility range',    maxLevel: 20 },
+  WAR_ROOM:          { icon: 'WAR_ROOM',          label: 'War Room',          desc: 'Train military units',              maxLevel: 20 },
+  CONSTRUCTION_YARD: { icon: 'CONSTRUCTION_YARD', label: 'Construction Yard', desc: 'Reduces build times (-1.5%/level)', maxLevel: 20 },
+  ALLIANCE:          { icon: 'ALLIANCE',          label: 'Alliance',          desc: 'Determines max alliance size',      maxLevel: 20 },
+  TRADE_POD:         { icon: 'TRADE_POD',         label: 'Trade Pod',         desc: 'Send resources to allies',          maxLevel: 20 },
 };
 
 export const RESOURCE_META = {
@@ -52,12 +54,12 @@ export const RESOURCE_META = {
 };
 
 export const UNIT_META = {
-  MOONBUGGY: { icon: '🏎️', label: 'Moonbuggy', attack: 25,   defense: 40,   speed: 80,  carry: 30,   buildTime: 30,   cost: { oxygen: 200, water: 100, iron: 150,  helium3: 180 } },
-  GUNSHIP:   { icon: '🚀', label: 'Gunship',   attack: 120,  defense: 40,   speed: 150, carry: 80,   buildTime: 120,  cost: { oxygen: 350, water: 300, iron: 230,  helium3: 200 } },
-  TANK:      { icon: '🦾', label: 'Tank',      attack: 250,  defense: 250,  speed: 120, carry: 120,  buildTime: 300,  cost: { oxygen: 450, water: 400, iron: 500,  helium3: 300 } },
-  HARVESTER: { icon: '🚜', label: 'Harvester', attack: 10,   defense: 10,   speed: 250, carry: 300,  buildTime: 180,  cost: { oxygen: 200, water: 250, iron: 350,  helium3: 400 } },
-  DRONE:     { icon: '🛸', label: 'Drone',     attack: 60,   defense: 15,   speed: 120, carry: 10,   buildTime: 12,   cost: { oxygen: 80,   water: 60,  iron: 100,  helium3: 60 } },
-  TITAN:     { icon: '👾', label: 'Titan',     attack: 3000, defense: 3000, speed: 60,  carry: 800,  buildTime: 3600, cost: { oxygen: 10000,water: 8000,iron: 12000,helium3: 8000 } },
+  MOONBUGGY: { icon: 'MOONBUGGY', label: 'Moonbuggy', attack: 25,   defense: 40,   speed: 80,  carry: 30,   buildTime: 30,   cost: { oxygen: 200, water: 100, iron: 150,  helium3: 180 } },
+  GUNSHIP:   { icon: 'GUNSHIP',   label: 'Gunship',   attack: 120,  defense: 40,   speed: 150, carry: 80,   buildTime: 120,  cost: { oxygen: 350, water: 300, iron: 230,  helium3: 200 } },
+  TANK:      { icon: 'TANK',      label: 'Tank',      attack: 250,  defense: 250,  speed: 120, carry: 120,  buildTime: 300,  cost: { oxygen: 450, water: 400, iron: 500,  helium3: 300 } },
+  HARVESTER: { icon: 'HARVESTER', label: 'Harvester', attack: 10,   defense: 10,   speed: 250, carry: 300,  buildTime: 180,  cost: { oxygen: 200, water: 250, iron: 350,  helium3: 400 } },
+  DRONE:     { icon: 'DRONE',     label: 'Drone',     attack: 60,   defense: 15,   speed: 120, carry: 10,   buildTime: 12,   cost: { oxygen: 80,   water: 60,  iron: 100,  helium3: 60 } },
+  TITAN:     { icon: 'TITAN',     label: 'Titan',     attack: 3000, defense: 3000, speed: 60,  carry: 800,  buildTime: 3600, cost: { oxygen: 10000,water: 8000,iron: 12000,helium3: 8000 } },
 };
 
 export const HELIUM_UPKEEP = {

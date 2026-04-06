@@ -5,6 +5,7 @@ import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import { RESOURCE_META, mineRate, MINE_RATE_PER_LEVEL } from '../utils/gameConstants.js';
 import { formatNumber, formatRate, formatCountdown } from '../utils/format.js';
+import { AlertTriangle, ArrowUp, Check } from 'lucide-react';
 
 const TYPE_MAP = {
   oxygen: 'OXYGEN', water: 'WATER', iron: 'IRON', helium3: 'HELIUM3',
@@ -126,12 +127,12 @@ export default function ResourceDetail() {
                 <span className="text-slate-400 text-sm">Net</span>
                 <span className={`font-bold text-base ${netRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {netRate >= 0 ? '+' : ''}{formatRate(netRate)}
-                  {netRate < 0 && ' ⚠️'}
+                  {netRate < 0 && <AlertTriangle size={12} className="inline ml-1" />}
                 </span>
               </div>
               {netRate < 0 && (
-                <div className="bg-red-900/30 border border-red-700/40 rounded-lg px-3 py-2 text-xs text-red-300">
-                  ⚠️ Units are consuming more Helium-3 than produced. Units will die if reserves run out!
+                <div className="bg-red-900/30 border border-red-700/40 rounded-lg px-3 py-2 text-xs text-red-300 flex items-center gap-1">
+                  <AlertTriangle size={12} /> Units are consuming more Helium-3 than produced. Units will die if reserves run out!
                 </div>
               )}
             </>
@@ -167,11 +168,11 @@ export default function ResourceDetail() {
                   </div>
 
                   {isUpgrading ? (
-                    <div className="text-xs text-yellow-400 text-center py-2">
-                      ⬆ Upgrading… {formatCountdown(mine.upgradeEndsAt)}
+                    <div className="text-xs text-yellow-400 text-center py-2 flex items-center justify-center gap-1">
+                      <ArrowUp size={12} /> Upgrading… {formatCountdown(mine.upgradeEndsAt)}
                     </div>
                   ) : isMaxLevel ? (
-                    <div className="text-xs text-green-400 text-center py-2">✓ Max Level</div>
+                    <div className="text-xs text-green-400 text-center py-2 flex items-center justify-center gap-1"><Check size={12} /> Max Level</div>
                   ) : cost && (
                     <div className="space-y-2">
                       <div className="text-xs text-green-400 text-center">

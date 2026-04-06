@@ -41,8 +41,8 @@ const DEFAULT_HELIUM_UPKEEP = {
 };
 
 const DEFAULT_SPECIAL = {
-  siloBase:          1500,
-  siloPerLevel:       750,
+  siloBase:           600,
+  siloGrowth:        1.40,
   bunkerMaxPct:        40,
   radarBase:           20,
   radarPerLevel:        5,
@@ -87,15 +87,17 @@ export async function initGameConfig() {
         console.log('[gameConfig] Migrated unit stats to v3.0.4 balance');
       }
 
-      // v3.0.5 migration: update siloPerLevel from 500 to 750 for cost calibration
-      if (_config.special.siloPerLevel === 500) {
-        _config.special.siloPerLevel = DEFAULT_SPECIAL.siloPerLevel;
+      // v4.1 migration: switch silo from linear (siloPerLevel) to exponential (siloGrowth)
+      if (_config.special.siloPerLevel !== undefined || !_config.special.siloGrowth) {
+        delete _config.special.siloPerLevel;
+        _config.special.siloBase   = DEFAULT_SPECIAL.siloBase;
+        _config.special.siloGrowth = DEFAULT_SPECIAL.siloGrowth;
         await prisma.serverConfig.upsert({
           where:  { key: 'game_config' },
           update: { value: JSON.stringify(_config) },
           create: { key: 'game_config', value: JSON.stringify(_config) },
         });
-        console.log('[gameConfig] Migrated siloPerLevel to v3.0.5 balance');
+        console.log('[gameConfig] Migrated silo to exponential growth (v4.1)');
       }
     }
   } catch (e) {
@@ -152,7 +154,7 @@ export async function resetGameConfig() {
 
 function buildingLevels(bases) {
   return Array.from({ length: 20 }, (_, i) => {
-    const m = Math.pow(1.2, i);
+    const m = Math.pow(1.4, i);
     return {
       oxygen:      Math.round(bases.oxygen  * m),
       water:       Math.round(bases.water   * m),
@@ -187,7 +189,9 @@ export function getMineLevelConfig(type) {
 }
 
 export function getSiloCapacity(level) {
-  return _config.special.siloBase + level * _config.special.siloPerLevel;
+  const base   = _config.special.siloBase   ?? 600;
+  const growth = _config.special.siloGrowth ?? 1.40;
+  return Math.round(base * Math.pow(growth, level));
 }
 
 export function getBunkerProtection(level) {

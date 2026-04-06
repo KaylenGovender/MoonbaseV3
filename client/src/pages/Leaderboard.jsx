@@ -4,7 +4,7 @@ import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import PlayerProfileModal from '../components/PlayerProfileModal.jsx';
-import { Users, UserCheck, Swords, Shield, Coins } from 'lucide-react';
+import { Users, UserCheck, Swords, Shield, Coins, Trophy, Medal, Moon, Handshake, Crown, Star } from 'lucide-react';
 
 const TABS = [
   { key: 'alliances', label: 'Alliances',  Icon: Users },
@@ -92,7 +92,11 @@ export default function Leaderboard() {
       .catch(() => {});
   }, []);
 
-  const rankMeta = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  const rankMeta = {
+    1: <Medal size={16} className="text-amber-400" />,
+    2: <Medal size={16} className="text-slate-300" />,
+    3: <Medal size={16} className="text-amber-700" />,
+  };
 
   const nextAward = season?.currentWeekEnd ? new Date(season.currentWeekEnd) : null;
   const msLeft = nextAward ? nextAward.getTime() - Date.now() : 0;
@@ -100,14 +104,14 @@ export default function Leaderboard() {
   return (
     <div className="page">
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-white">🏆 Leaderboards</h1>
+        <h1 className="text-sm font-semibold text-white flex items-center gap-1"><Trophy size={14} /> Leaderboards</h1>
       </div>
 
       {/* Season info banner */}
       {season && (
         <div className="mx-4 mt-4 bg-indigo-950/40 border border-indigo-700/30 rounded-xl px-4 py-3 flex items-center justify-between">
           <div>
-            <div className="text-xs text-indigo-300 font-semibold">🌙 {season.name}</div>
+            <div className="text-xs text-indigo-300 font-semibold flex items-center gap-1"><Moon size={12} /> {season.name}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">{formatSeasonCountdown(season.endDate)}</div>
           </div>
           <div className={`text-xs font-mono font-bold ${season.isActive ? 'text-green-400' : 'text-slate-500'}`}>
@@ -120,7 +124,7 @@ export default function Leaderboard() {
       {nextAward && (
         <div className="mx-4 mt-3 bg-yellow-950/40 border border-yellow-700/30 rounded-xl px-4 py-3 flex items-center justify-between">
           <div>
-            <div className="text-xs text-yellow-400 font-semibold">🏅 Next Weekly Medals — Week {season?.currentWeekNumber}</div>
+            <div className="text-xs text-yellow-400 font-semibold flex items-center gap-1"><Medal size={12} /> Next Weekly Medals — Week {season?.currentWeekNumber}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">
               {nextAward.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </div>
@@ -138,9 +142,9 @@ export default function Leaderboard() {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="stat-row"><span className="text-slate-400">Population Rank</span><span className="text-white font-mono">#{myRank.populationRank ?? '—'}</span></div>
             <div className="stat-row"><span className="text-slate-400">Population Pts</span><span className="text-white font-mono">{formatNumber(myRank.populationPoints)}</span></div>
-            <div className="stat-row"><span className="text-slate-400">⚔️ Attacker Pts</span><span className="text-white font-mono">{formatNumber(myRank.attackerMedals)}</span></div>
-            <div className="stat-row"><span className="text-slate-400">🛡️ Defender Pts</span><span className="text-white font-mono">{formatNumber(myRank.defenderMedals)}</span></div>
-            <div className="stat-row"><span className="text-slate-400">💰 Raider Pts</span><span className="text-white font-mono">{formatNumber(myRank.raiderMedals)}</span></div>
+            <div className="stat-row"><span className="text-slate-400 flex items-center gap-1"><Swords size={12} /> Attacker Pts</span><span className="text-white font-mono">{formatNumber(myRank.attackerMedals)}</span></div>
+            <div className="stat-row"><span className="text-slate-400 flex items-center gap-1"><Shield size={12} /> Defender Pts</span><span className="text-white font-mono">{formatNumber(myRank.defenderMedals)}</span></div>
+            <div className="stat-row"><span className="text-slate-400 flex items-center gap-1"><Coins size={12} /> Raider Pts</span><span className="text-white font-mono">{formatNumber(myRank.raiderMedals)}</span></div>
           </div>
         </div>
       )}
@@ -307,15 +311,15 @@ export default function Leaderboard() {
           <div className="w-full bg-space-800 border-t border-space-600/50 rounded-t-2xl p-5 max-h-[70vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white">🤝 {allianceModal.name}</h2>
-              <button onClick={() => setAllianceModal(null)} className="text-slate-500 text-xl">✕</button>
+              <h2 className="text-sm font-semibold text-white flex items-center gap-1"><Handshake size={14} /> {allianceModal.name}</h2>
+              <button onClick={() => setAllianceModal(null)} className="text-slate-500 text-xl">×</button>
             </div>
             <div className="space-y-1">
               {allianceModal.members.map((m, i) => (
                 <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-space-700/50">
                   <span className="text-sm font-medium text-white">{m.username}</span>
-                  {m.isLeader && <span className="text-[10px] text-yellow-400">👑 Leader</span>}
-                  {!m.isLeader && m.role === 'ADMIN' && <span className="text-[10px] text-purple-400">⭐ Admin</span>}
+                  {m.isLeader && <span className="text-[10px] text-yellow-400 flex items-center gap-0.5"><Crown size={10} /> Leader</span>}
+                  {!m.isLeader && m.role === 'ADMIN' && <span className="text-[10px] text-purple-400 flex items-center gap-0.5"><Star size={10} /> Admin</span>}
                 </div>
               ))}
             </div>

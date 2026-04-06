@@ -6,6 +6,8 @@ import { formatNumber } from '../utils/format.js';
 import { getInitials } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 import PlayerProfileModal from '../components/PlayerProfileModal.jsx';
+import UnitIcon from '../components/UnitIcon.jsx';
+import { Shield, Crown, Star, HandCoins, ChevronUp, ChevronDown, Bomb, DoorOpen, Clock, CheckCircle } from 'lucide-react';
 
 export default function Alliance() {
   const { user } = useAuthStore();
@@ -236,7 +238,7 @@ export default function Alliance() {
     setSendError('');
     try {
       await api.post(`/reinforcement/${activeBaseId}/send`, { targetBaseId, units });
-      const lines = Object.entries(units).map(([type, qty]) => `${UNIT_META[type]?.icon ?? type} ${qty}× ${UNIT_META[type]?.label ?? type}`);
+      const lines = Object.entries(units).map(([type, qty]) => `${qty}× ${UNIT_META[type]?.label ?? type}`);
       setSendSuccess(`Sent to ${sendModal.member.user?.username}:\n${lines.join(' · ')}`);
     } catch (e) {
       setSendError(e.message);
@@ -261,7 +263,7 @@ export default function Alliance() {
     return (
       <div className="page">
         <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
-          <h1 className="text-sm font-semibold text-white">🛡️ Alliance</h1>
+          <h1 className="text-sm font-semibold text-white flex items-center gap-1.5"><Shield size={16} className="text-blue-400" /> Alliance</h1>
         </div>
         <div className="px-4 py-4 space-y-5">
           {error && <div className="bg-red-900/40 border border-red-700/50 text-red-300 text-sm rounded-lg px-4 py-3">{error}</div>}
@@ -316,7 +318,7 @@ export default function Alliance() {
   return (
     <div className={tab === 'chat' ? 'flex flex-col overflow-hidden' : 'page'} style={tab === 'chat' ? { height: '100dvh' } : undefined}>
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
-        <h1 className="text-sm font-semibold text-white">🛡️ {alliance.name}</h1>
+        <h1 className="text-sm font-semibold text-white flex items-center gap-1.5"><Shield size={16} className="text-blue-400" /> {alliance.name}</h1>
       </div>
 
       {/* Tabs */}
@@ -344,16 +346,16 @@ export default function Alliance() {
           <div className="card space-y-2">
             <div className="stat-row"><span className="text-slate-400 text-sm">Alliance</span><span className="text-white font-semibold">{alliance.name}</span></div>
             <div className="stat-row"><span className="text-slate-400 text-sm">Members</span><span className="text-white">{alliance.members?.length ?? 0}</span></div>
-            <div className="stat-row"><span className="text-slate-400 text-sm">Role</span><span className={myRole === 'LEADER' ? 'text-yellow-400' : myRole === 'ADMIN' ? 'text-purple-400' : 'text-slate-300'}>{myRole === 'LEADER' ? '👑 Leader' : myRole === 'ADMIN' ? '⭐ Admin' : 'Member'}</span></div>
+            <div className="stat-row"><span className="text-slate-400 text-sm">Role</span><span className={`flex items-center gap-1 ${myRole === 'LEADER' ? 'text-yellow-400' : myRole === 'ADMIN' ? 'text-purple-400' : 'text-slate-300'}`}>{myRole === 'LEADER' ? <><Crown size={12} className="text-amber-400" /> Leader</> : myRole === 'ADMIN' ? <><Star size={12} className="text-amber-400" /> Admin</> : 'Member'}</span></div>
           </div>
 
           {isLeader ? (
-            <button onClick={disbandAlliance} className="btn-danger w-full text-sm">
-              💥 Disband Alliance
+            <button onClick={disbandAlliance} className="btn-danger w-full text-sm flex items-center justify-center gap-1.5">
+              <Bomb size={14} /> Disband Alliance
             </button>
           ) : (
-            <button onClick={leaveAlliance} className="btn-ghost w-full text-sm border-red-800/50 text-red-400">
-              🚪 Leave Alliance
+            <button onClick={leaveAlliance} className="btn-ghost w-full text-sm border-red-800/50 text-red-400 flex items-center justify-center gap-1.5">
+              <DoorOpen size={14} /> Leave Alliance
             </button>
           )}
         </div>
@@ -363,7 +365,7 @@ export default function Alliance() {
         <div className="px-4 py-4 space-y-4">
           {isLeader && joinRequests.length > 0 && (
             <div className="space-y-2">
-              <p className="section-title" style={{color:'#facc15'}}>⏳ Join Requests</p>
+              <p className="section-title flex items-center gap-1" style={{color:'#facc15'}}><Clock size={14} /> Join Requests</p>
               {joinRequests.map((req) => (
                 <div key={req.id} className="card flex items-center justify-between">
                   <span className="text-sm text-white">{req.invitedUser?.username}</span>
@@ -397,8 +399,8 @@ export default function Alliance() {
                       <div>
                         <div className="text-sm text-white flex items-center gap-1.5">
                           {m.user?.username}
-                          {memberRole === 'LEADER' && <span className="text-[10px] text-yellow-400">👑 Leader</span>}
-                          {memberRole === 'ADMIN'  && <span className="text-[10px] text-purple-400">⭐ Admin</span>}
+                          {memberRole === 'LEADER' && <span className="text-[10px] text-yellow-400 flex items-center gap-0.5"><Crown size={10} className="text-amber-400" /> Leader</span>}
+                          {memberRole === 'ADMIN'  && <span className="text-[10px] text-purple-400 flex items-center gap-0.5"><Star size={10} className="text-amber-400" /> Admin</span>}
                         </div>
                         {contribution > 0 && (
                           <div className="text-[10px] text-slate-500 mt-0.5">{contribution.toLocaleString()} contribution pts</div>
@@ -412,12 +414,12 @@ export default function Alliance() {
                             onClick={() => openSendModal('resources', m)}
                             className="text-xs bg-blue-900/50 text-blue-300 border border-blue-700/40 px-2 py-1 rounded-lg hover:bg-blue-800/60 transition-colors"
                             title="Send Resources"
-                          >💰</button>
+                          ><HandCoins size={14} className="text-amber-400" /></button>
                           <button
                             onClick={() => openSendModal('reinforce', m)}
                             className="text-xs bg-green-900/50 text-green-300 border border-green-700/40 px-2 py-1 rounded-lg hover:bg-green-800/60 transition-colors"
                             title="Send Reinforcements"
-                          >🛡</button>
+                          ><Shield size={14} className="text-green-300" /></button>
                         </>
                       )}
                       {isLeader && m.userId !== user?.id && memberRole !== 'LEADER' && (
@@ -503,16 +505,16 @@ export default function Alliance() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
               <h3 className="text-sm font-semibold text-white">
-                {sendModal.type === 'resources' ? '💰 Send Resources' : '🛡 Send Reinforcements'}
+                {sendModal.type === 'resources' ? <><HandCoins size={14} className="text-amber-400 inline" /> Send Resources</> : <><Shield size={14} className="text-blue-400 inline" /> Send Reinforcements</>}
                 <span className="text-slate-400 font-normal"> → {sendModal.member.user?.username}</span>
               </h3>
-              <button onClick={() => setSendModal(null)} className="text-slate-500 text-xl leading-none px-2">✕</button>
+              <button onClick={() => setSendModal(null)} className="text-slate-500 text-xl leading-none px-2">×</button>
             </div>
 
             <div className="overflow-y-auto flex-1 px-4 pb-4 space-y-3">
               {sendSuccess ? (
                 <div className="text-center py-6 space-y-3">
-                  <div className="text-2xl">✅</div>
+                  <div className="text-2xl flex justify-center"><CheckCircle size={28} className="text-green-400" /></div>
                   <div className="text-green-400 text-sm font-semibold">Dispatched!</div>
                   <div className="bg-space-700/60 rounded-xl px-4 py-3 text-xs text-slate-300 text-left space-y-1">
                     {sendSuccess.split('\n').map((line, i) => (
@@ -557,7 +559,7 @@ export default function Alliance() {
                         if (available === 0) return null; // only show units you have
                         return (
                           <div key={type} className="flex items-center gap-3">
-                            <span className="text-xl w-8 text-center">{meta.icon}</span>
+                            <span className="text-xl w-8 text-center"><UnitIcon type={type} size={20} /></span>
                             <div className="flex-1">
                               <div className="text-xs text-slate-400 mb-1">{meta.label}</div>
                               <input
@@ -584,7 +586,7 @@ export default function Alliance() {
                     disabled={sendLoading}
                     className="btn-primary w-full text-sm py-3"
                   >
-                    {sendLoading ? 'Sending…' : sendModal.type === 'resources' ? '💰 Send Resources' : '🛡 Send Reinforcements'}
+                    {sendLoading ? 'Sending…' : sendModal.type === 'resources' ? <><HandCoins size={14} className="inline" /> Send Resources</> : <><Shield size={14} className="inline" /> Send Reinforcements</>}
                   </button>
                 </>
               )}
@@ -607,7 +609,7 @@ function AllianceCard({ alliance: a, onRequest }) {
             onClick={() => setExpanded((v) => !v)}
             className="text-xs text-slate-400 hover:text-sky-400 transition-colors"
           >
-            {a.memberCount} member{a.memberCount !== 1 ? 's' : ''} {expanded ? '▲' : '▼'}
+            {a.memberCount} member{a.memberCount !== 1 ? 's' : ''} {expanded ? <ChevronUp size={14} className="inline" /> : <ChevronDown size={14} className="inline" />}
           </button>
         </div>
         {a.hasRequested ? (

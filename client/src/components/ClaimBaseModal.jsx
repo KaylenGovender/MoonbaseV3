@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../utils/api.js';
 import { useAuthStore } from '../store/authStore.js';
+import { Moon } from 'lucide-react';
 
 export default function ClaimBaseModal({ onClose, onClaimed }) {
   const refreshBases = useAuthStore((s) => s.refreshBases);
@@ -38,10 +39,10 @@ export default function ClaimBaseModal({ onClose, onClaimed }) {
       >
         <div className="px-5 py-4 border-b border-space-600/50 flex items-center justify-between">
           <div>
-            <div className="text-white font-bold">🌕 Claim New Base</div>
+            <div className="text-white font-bold flex items-center gap-1"><Moon size={16} className="text-amber-300" /> Claim New Base</div>
             <div className="text-xs text-slate-400 mt-0.5">Choose a plot on the lunar surface</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 text-xl">✕</button>
+          <button onClick={onClose} className="text-slate-500 text-xl">×</button>
         </div>
 
         <div className="p-5 space-y-3">

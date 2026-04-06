@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../store/authStore.js';
 import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
+import { MessageCircle } from 'lucide-react';
 
 export default function DMChat({ targetUserId, targetUsername, onClose }) {
   const user = useAuthStore((s) => s.user);
@@ -60,7 +61,7 @@ export default function DMChat({ targetUserId, targetUsername, onClose }) {
         <div className="flex items-center gap-3 px-4 py-3 border-b border-space-600/50 bg-space-800/95 flex-shrink-0">
           <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">← Back</button>
           <div className="flex-1">
-            <div className="text-sm font-semibold text-white">💬 {targetUsername}</div>
+            <div className="text-sm font-semibold text-white flex items-center gap-1"><MessageCircle size={14} /> {targetUsername}</div>
           </div>
         </div>
 
@@ -69,7 +70,7 @@ export default function DMChat({ targetUserId, targetUsername, onClose }) {
           {loading ? (
             <div className="text-center py-8 text-slate-500 text-sm">Loading messages…</div>
           ) : messages.length === 0 ? (
-            <div className="text-center py-8 text-slate-600 text-sm">No messages yet. Say hello! 👋</div>
+            <div className="text-center py-8 text-slate-600 text-sm">No messages yet. Say hello!</div>
           ) : (
             messages.map((msg, i) => (
               <div key={msg.id ?? i} className={`flex ${msg.fromUserId === user?.id ? 'justify-end' : 'justify-start'}`}>

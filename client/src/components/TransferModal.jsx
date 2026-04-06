@@ -3,13 +3,15 @@ import { api } from '../utils/api.js';
 import { useAuthStore } from '../store/authStore.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from './UnitIcon.jsx';
+import ResourceIcon from './ResourceIcon.jsx';
 import { formatNumber } from '../utils/format.js';
+import { Package, Swords } from 'lucide-react';
 
 const RESOURCES = [
-  { key: 'oxygen',  icon: '💨', label: 'Oxygen' },
-  { key: 'water',   icon: '💧', label: 'Water' },
-  { key: 'iron',    icon: '⚙️', label: 'Iron' },
-  { key: 'helium3', icon: '⚗️', label: 'Helium-3' },
+  { key: 'oxygen',  type: 'OXYGEN',  label: 'Oxygen' },
+  { key: 'water',   type: 'WATER',   label: 'Water' },
+  { key: 'iron',    type: 'IRON',    label: 'Iron' },
+  { key: 'helium3', type: 'HELIUM3', label: 'Helium-3' },
 ];
 
 const UNIT_TYPES = Object.keys(UNIT_META);
@@ -79,7 +81,7 @@ export default function TransferModal({ fromBaseId, resources, onClose, onSucces
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-white font-semibold text-base">⇄ Transfer Between Bases</h2>
-          <button onClick={onClose} className="text-slate-500 text-xl px-1">✕</button>
+          <button onClick={onClose} className="text-slate-500 text-xl px-1">×</button>
         </div>
 
         {/* Destination selector */}
@@ -105,7 +107,7 @@ export default function TransferModal({ fromBaseId, resources, onClose, onSucces
               className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-colors capitalize
                 ${tab === t ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'}`}
             >
-              {t === 'resources' ? '📦 Resources' : '⚔️ Units'}
+              {t === 'resources' ? <><Package size={14} /> Resources</> : <><Swords size={14} /> Units</>}
             </button>
           ))}
         </div>
@@ -113,10 +115,10 @@ export default function TransferModal({ fromBaseId, resources, onClose, onSucces
         {/* Resources tab */}
         {tab === 'resources' && (
           <div className="space-y-3">
-            {RESOURCES.map(({ key, icon, label }) => (
+            {RESOURCES.map(({ key, type, label }) => (
               <div key={key} className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
-                  <span className="text-base">{icon}</span>
+                  <ResourceIcon type={type} size={16} />
                   <span className="text-sm text-slate-300">{label}</span>
                 </div>
                 <div className="flex-1 flex items-center gap-2">

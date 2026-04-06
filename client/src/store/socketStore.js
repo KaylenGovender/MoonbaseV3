@@ -74,8 +74,8 @@ export const useSocketStore = create((set, get) => ({
         useBaseStore.getState().addToast?.({
           type: totalLost > 0 ? 'warning' : 'info',
           message: totalLost > 0
-            ? `⚔️ Your reinforcements at ${defenderBaseName} were attacked! ${totalLost} units lost.`
-            : `🛡 Your reinforcements at ${defenderBaseName} defended successfully!`,
+            ? `[Combat] Your reinforcements at ${defenderBaseName} were attacked! ${totalLost} units lost.`
+            : `[Defense] Your reinforcements at ${defenderBaseName} defended successfully!`,
         });
         useBaseStore.getState().addReinforcementReport?.({ report, defenderBaseName, losses, attackId });
       } else {
@@ -89,7 +89,7 @@ export const useSocketStore = create((set, get) => ({
     // Helium attrition — notify user units are dying
     socket.on('helium:attrition', ({ baseId, unitType, message }) => {
       if (isActiveBase(baseId)) {
-        useBaseStore.getState().addToast?.({ type: 'warning', message: message || `⚠️ A ${unitType} was lost — no helium!` });
+        useBaseStore.getState().addToast?.({ type: 'warning', message: message || `[Warning] A ${unitType} was lost — no helium!` });
       }
     });
 

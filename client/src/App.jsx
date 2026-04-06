@@ -20,6 +20,7 @@ import ChatPage from './pages/ChatPage.jsx';
 import NavBar from './components/NavBar.jsx';
 import MedalBanner from './components/MedalBanner.jsx';
 import BattleReportsPage from './pages/BattleReportsPage.jsx';
+import { Megaphone } from 'lucide-react';
 
 import { APP_VERSION } from './utils/gameConstants.js';
 
@@ -128,7 +129,7 @@ function AuthLayout({ children }) {
     <div className="flex flex-col h-full">
       {announcement && (
         <div className="bg-yellow-900/80 border-b border-yellow-600/50 text-yellow-200 text-xs text-center px-4 py-2 flex items-center justify-center gap-2">
-          <span>📢</span> <span>{announcement}</span>
+          <Megaphone size={16} className="text-amber-400 shrink-0" /> <span>{announcement}</span>
         </div>
       )}
       <MedalBanner />

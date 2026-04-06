@@ -16,7 +16,7 @@ const BUILDING_ICONS = {
 
 export default function BuildingIcon({ type, size = 20, className = '' }) {
   const entry = BUILDING_ICONS[type];
-  if (!entry) return <span className={className}>🏢</span>;
+  if (!entry) return <Home size={size} className={`text-slate-400 ${className}`} strokeWidth={1.8} />;
 
   const { Icon, color } = entry;
   return <Icon size={size} className={`${color} ${className}`} strokeWidth={1.8} />;

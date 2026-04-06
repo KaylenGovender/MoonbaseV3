@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore.js';
 import { useSocketStore } from '../store/socketStore.js';
 import { api } from '../utils/api.js';
 import { getInitials } from '../utils/format.js';
+import { MessageCircle, Search, Trash2, ArrowLeft, Check, CheckCheck } from 'lucide-react';
 
 export default function ChatPage() {
   const { targetId } = useParams();
@@ -69,7 +70,7 @@ function ConversationList({ navigate }) {
     <div className="page flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3">
-        <h1 className="text-sm font-semibold text-white mb-3">💬 Messages</h1>
+        <h1 className="text-sm font-semibold text-white mb-3 flex items-center gap-1.5"><MessageCircle size={16} className="text-blue-400" /> Messages</h1>
         {/* Player search */}
         <div className="relative">
           <input
@@ -79,12 +80,12 @@ function ConversationList({ navigate }) {
             value={searchQ}
             onChange={(e) => handleSearch(e.target.value)}
           />
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm"><Search size={14} className="text-slate-500" /></span>
           {searchQ && (
             <button
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs"
               onClick={() => { setSearchQ(''); setSearchResults([]); }}
-            >✕</button>
+            >×</button>
           )}
         </div>
       </div>
@@ -115,7 +116,7 @@ function ConversationList({ navigate }) {
                       <div className="text-sm font-medium text-white">{u.username}</div>
                       <div className="text-xs text-slate-500">Tap to message</div>
                     </div>
-                    <span className="text-blue-400 text-sm">💬</span>
+                    <MessageCircle size={14} className="text-blue-400" />
                   </button>
                 ))}
               </div>
@@ -133,7 +134,7 @@ function ConversationList({ navigate }) {
               <div className="text-center py-8 text-slate-500 text-sm">Loading…</div>
             ) : conversations.length === 0 ? (
               <div className="text-center py-12 text-slate-600 text-sm">
-                <div className="text-4xl mb-3">💬</div>
+                <div className="mb-3 flex justify-center"><MessageCircle size={40} className="text-slate-600" /></div>
                 <div className="font-medium text-slate-500 mb-1">No conversations yet</div>
                 <div className="text-xs text-slate-600">Search for a player above to start chatting</div>
               </div>
@@ -163,7 +164,7 @@ function ConversationList({ navigate }) {
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
                       className="text-slate-600 hover:text-red-400 transition-colors text-sm flex-shrink-0 p-1"
                       title="Delete conversation"
-                    >🗑️</button>
+                    ><Trash2 size={14} /></button>
                   </div>
                 ))}
               </div>
@@ -261,7 +262,7 @@ function DMView({ targetUserId, targetUsername, onBack }) {
     <div className="page flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-space-800/95 backdrop-blur border-b border-space-600/50 px-4 py-3 flex items-center gap-3">
-        <button onClick={onBack} className="text-slate-400 hover:text-white text-sm">← Back</button>
+        <button onClick={onBack} className="text-slate-400 hover:text-white text-sm flex items-center gap-1"><ArrowLeft size={14} /> Back</button>
         <div className="w-9 h-9 rounded-full bg-blue-900/60 border border-blue-700/40 flex items-center justify-center text-sm font-bold text-white">
           {getInitials(targetUsername)}
         </div>
@@ -276,7 +277,7 @@ function DMView({ targetUserId, targetUsername, onBack }) {
           <div className="text-center py-8 text-slate-500 text-sm">Loading messages…</div>
         ) : messages.length === 0 ? (
           <div className="text-center py-8 text-slate-600 text-sm">
-            <div className="text-3xl mb-2">👋</div>
+            <div className="mb-2 flex justify-center"><MessageCircle size={32} className="text-slate-600" /></div>
             No messages yet. Say hello!
           </div>
         ) : (
@@ -294,8 +295,8 @@ function DMView({ targetUserId, targetUsername, onBack }) {
                     </span>
                   )}
                   {msg.fromUserId === user?.id && (
-                    <span className={`text-[10px] ${msg.readAt ? 'text-blue-400' : 'text-slate-500'}`}>
-                      {msg.readAt ? '✓✓' : '✓'}
+                    <span className={`${msg.readAt ? 'text-blue-400' : 'text-slate-500'}`}>
+                      {msg.readAt ? <CheckCheck size={10} /> : <Check size={10} />}
                     </span>
                   )}
                 </div>

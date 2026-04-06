@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { formatCountdown } from '../utils/format.js';
 import { BUILDING_META } from '../utils/gameConstants.js';
+import BuildingIcon from './BuildingIcon.jsx';
+import { ArrowUp } from 'lucide-react';
 
 export default function BuildingCard({ building, onClick }) {
-  const meta  = BUILDING_META[building.type] ?? { icon: '🏢', label: building.type, desc: '' };
+  const meta  = BUILDING_META[building.type] ?? { label: building.type, desc: '' };
   const [countdown, setCountdown] = useState('');
 
   useEffect(() => {
@@ -26,13 +28,13 @@ export default function BuildingCard({ building, onClick }) {
       {isUpgrading && (
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-yellow-500 animate-pulse" />
       )}
-      <span className="text-3xl leading-none mt-1">{meta.icon}</span>
+      <span className="text-3xl leading-none mt-1"><BuildingIcon type={building.type} size={32} /></span>
       <div>
         <div className="text-xs font-semibold text-slate-200 leading-tight">{meta.label}</div>
         <div className="text-[10px] text-slate-500 mt-0.5">Lv {building.level}</div>
       </div>
       {isUpgrading ? (
-        <div className="text-[10px] text-yellow-400 font-medium">⬆ {countdown}</div>
+        <div className="text-[10px] text-yellow-400 font-medium flex items-center justify-center gap-0.5"><ArrowUp size={10} /> {countdown}</div>
       ) : (
         <div className="text-[10px] text-slate-600">tap to manage</div>
       )}

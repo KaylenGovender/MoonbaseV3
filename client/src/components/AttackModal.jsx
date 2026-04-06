@@ -4,6 +4,7 @@ import { api } from '../utils/api.js';
 import { formatNumber } from '../utils/format.js';
 import { UNIT_META } from '../utils/gameConstants.js';
 import UnitIcon from './UnitIcon.jsx';
+import { Swords, Clock, Target } from 'lucide-react';
 
 function calcDistance(a, b) {
   if (!a || !b) return null;
@@ -90,15 +91,15 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
             <div className="text-white font-semibold">Launch Attack</div>
             <div className="text-xs text-slate-400">Target: {targetBase.name}</div>
           </div>
-          <button onClick={onClose} className="text-slate-500 text-xl px-2">✕</button>
+          <button onClick={onClose} className="text-slate-500 text-xl px-2">×</button>
         </div>
 
         {/* Distance + ETA preview */}
         {distance !== null && (
           <div className="mx-4 mt-3 bg-space-700/60 rounded-xl px-3 py-2 flex items-center justify-between text-xs">
-            <span className="text-slate-400">📍 Distance: <span className="text-white font-mono">{Math.round(distance)} km</span></span>
+            <span className="text-slate-400 flex items-center gap-1"><Target size={12} /> Distance: <span className="text-white font-mono">{Math.round(distance)} km</span></span>
             {eta !== null ? (
-              <span className="text-slate-400">⏱ ETA: <span className="text-yellow-400 font-mono">{formatEtaDuration(eta)}</span> <span className="text-slate-600">(slowest unit)</span></span>
+              <span className="text-slate-400 flex items-center gap-1"><Clock size={12} /> ETA: <span className="text-yellow-400 font-mono">{formatEtaDuration(eta)}</span> <span className="text-slate-600">(slowest unit)</span></span>
             ) : (
               <span className="text-slate-600">Select units to see ETA</span>
             )}
@@ -113,7 +114,7 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
           )}
 
           {stocks.filter((s) => s.count > 0).map((stock) => {
-            const meta  = UNIT_META[stock.type] ?? { icon: '⚔️', label: stock.type };
+            const meta  = UNIT_META[stock.type] ?? { label: stock.type };
             const qty   = units[stock.type] ?? 0;
             const speed = (unitSpeeds ?? {})[stock.type] ?? meta.speed;
             return (
@@ -157,8 +158,8 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
           )}
 
           {totalSelected > 0 && eta !== null && (
-            <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 text-xs text-yellow-300 text-center">
-              ⏱ {totalSelected} units will arrive in <strong>{formatEtaDuration(eta)}</strong>
+            <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 text-xs text-yellow-300 text-center flex items-center justify-center gap-1">
+              <Clock size={12} /> {totalSelected} units will arrive in <strong>{formatEtaDuration(eta)}</strong>
             </div>
           )}
 
@@ -167,7 +168,7 @@ export default function AttackModal({ targetBase, playerBase, playerBaseIds, onC
             disabled={loading}
             className="btn-danger w-full mt-2"
           >
-            {loading ? 'Launching…' : '⚔️ Launch Attack'}
+            {loading ? 'Launching…' : <><Swords size={14} className="inline" /> Launch Attack</>}
           </button>
         </div>
       </div>
